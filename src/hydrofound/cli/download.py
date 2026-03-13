@@ -82,6 +82,11 @@ def download_cmd(
         pick_results,
     )
 
+    offline: bool = ctx.obj.get("offline", False) if ctx.obj else False
+    if offline:
+        typer.echo("Error: Offline mode: download requires network access", err=True)
+        raise typer.Exit(code=1)
+
     kb = _resolve_kb(ctx)
     output_dir = kb / "pdfs"
 

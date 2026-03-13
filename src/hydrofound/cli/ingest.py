@@ -208,6 +208,10 @@ def ingest_package_cmd(
     kb_path = _resolve_kb(ctx)
     config = load_config(kb_path)
 
+    offline: bool = ctx.obj.get("offline", False) if ctx.obj else False
+    if offline:
+        config.offline_only = True
+
     try:
         entry = ingest_package(
             name,

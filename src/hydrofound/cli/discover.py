@@ -36,6 +36,11 @@ def discover_cmd(
     from hydrofound.config import load_config
     from hydrofound.discovery.orchestrator import discover_papers
 
+    offline: bool = ctx.obj.get("offline", False) if ctx.obj else False
+    if offline:
+        typer.echo("Error: Offline mode: discover requires network access", err=True)
+        raise typer.Exit(code=1)
+
     kb: Path | None = ctx.obj.get("kb") if ctx.obj else None
     if kb is None:
         console.print(
