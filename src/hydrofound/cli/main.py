@@ -32,6 +32,11 @@ def main_callback(
     ctx.obj["offline"] = offline
 
 
+from hydrofound.cli.init import init_command  # noqa: E402
+
+app.command(name="init")(init_command)
+
+
 @app.command()
 def version() -> None:
     """Print version."""
