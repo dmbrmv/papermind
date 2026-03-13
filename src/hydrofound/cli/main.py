@@ -34,9 +34,11 @@ def main_callback(
 
 from hydrofound.cli.ingest import ingest_app  # noqa: E402
 from hydrofound.cli.init import init_command  # noqa: E402
+from hydrofound.cli.search import search_command  # noqa: E402
 
 app.command(name="init")(init_command)
 app.add_typer(ingest_app, name="ingest")
+app.command(name="search")(search_command)
 
 
 @app.command()
