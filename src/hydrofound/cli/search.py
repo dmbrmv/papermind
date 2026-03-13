@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import shutil
 from pathlib import Path
 
 import typer
@@ -44,35 +43,45 @@ def search_command(
         raise typer.Exit(code=1)
 
     # Prefer qmd if available (semantic search) — fallback if not.
-    if shutil.which("qmd") is not None:
-        _run_qmd_search(kb, query, scope=scope, limit=limit)
+    from hydrofound.query.qmd import is_qmd_available, qmd_search
+
+    if is_qmd_available():
+        try:
+            results = qmd_search(kb, query, scope=scope or "", limit=limit)
+        except RuntimeError as exc:
+            console.print(f"[red]qmd error:[/red] {exc}")
+            raise typer.Exit(code=1) from exc
+        if not results:
+            console.print(f"[yellow]No results found for:[/yellow] {query!r}")
+            return
+        _print_results_table(query, results)
     else:
         _run_fallback_search(kb, query, scope=scope, limit=limit)
 
 
-def _run_qmd_search(
-    kb: Path,
-    query: str,
-    *,
-    scope: str | None,
-    limit: int,
-) -> None:
-    """Delegate to qmd for semantic search.
+def _print_results_table(query: str, results: list) -> None:
+    """Render a Rich table for a list of SearchResult objects.
 
     Args:
-        kb: Path to the knowledge base root.
-        query: Search query string.
-        scope: Optional scope filter.
-        limit: Maximum results.
+        query: The original query string (used in the table title).
+        results: Non-empty list of SearchResult instances.
     """
-    import subprocess
+    table = Table(
+        title=f'Search results for "{query}"',
+        show_header=True,
+        header_style="bold cyan",
+        expand=True,
+    )
+    table.add_column("Title", style="bold", no_wrap=False, ratio=2)
+    table.add_column("Path", style="dim", no_wrap=False, ratio=3)
+    table.add_column("Score", justify="right", style="green", no_wrap=True, ratio=1)
+    table.add_column("Snippet", no_wrap=False, ratio=5)
 
-    cmd = ["qmd", "search", str(kb), query, f"--limit={limit}"]
-    if scope:
-        cmd.append(f"--scope={scope}")
+    for r in results:
+        table.add_row(r.title, r.path, f"{r.score:.1f}", r.snippet[:180])
 
-    result = subprocess.run(cmd, capture_output=False)  # noqa: S603
-    raise typer.Exit(code=result.returncode)
+    console.print(table)
+    console.print(f"[dim]{len(results)} result(s)[/dim]")
 
 
 def _run_fallback_search(
@@ -98,19 +107,4 @@ def _run_fallback_search(
         console.print(f"[yellow]No results found for:[/yellow] {query!r}")
         return
 
-    table = Table(
-        title=f'Search results for "{query}"',
-        show_header=True,
-        header_style="bold cyan",
-        expand=True,
-    )
-    table.add_column("Title", style="bold", no_wrap=False, ratio=2)
-    table.add_column("Path", style="dim", no_wrap=False, ratio=3)
-    table.add_column("Score", justify="right", style="green", no_wrap=True, ratio=1)
-    table.add_column("Snippet", no_wrap=False, ratio=5)
-
-    for r in results:
-        table.add_row(r.title, r.path, f"{r.score:.1f}", r.snippet[:180])
-
-    console.print(table)
-    console.print(f"[dim]{len(results)} result(s)[/dim]")
+    _print_results_table(query, results)
