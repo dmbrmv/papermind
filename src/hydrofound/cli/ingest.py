@@ -99,6 +99,69 @@ def ingest_codebase(
         _try_qmd_reindex(kb_path)
 
 
+@ingest_app.command(name="paper")
+def ingest_paper_cmd(
+    ctx: typer.Context,
+    path: Path = typer.Argument(..., help="Path to PDF file."),
+    topic: str = typer.Option(
+        "uncategorized",
+        "--topic",
+        "-t",
+        help="Topic category for the paper.",
+    ),
+    no_reindex: bool = typer.Option(
+        False,
+        "--no-reindex",
+        help="Skip qmd reindex after ingestion.",
+    ),
+) -> None:
+    """Ingest a single PDF paper into the knowledge base.
+
+    Converts the PDF to markdown via Marker, extracts metadata (title, DOI,
+    year), writes a frontmatter-annotated markdown file, and updates
+    catalog.json and catalog.md.
+    """
+    from hydrofound.config import load_config
+    from hydrofound.ingestion.paper import ingest_paper
+
+    kb_path = _resolve_kb(ctx)
+    pdf_path = path.resolve()
+
+    if not pdf_path.exists():
+        console.print(f"[red]File not found:[/red] {pdf_path}")
+        raise typer.Exit(code=1)
+
+    config = load_config(kb_path)
+
+    try:
+        entry = ingest_paper(
+            pdf_path,
+            topic,
+            kb_path,
+            config,
+            no_reindex=no_reindex,
+        )
+    except FileNotFoundError as exc:
+        console.print(f"[red]Marker not installed:[/red] {exc}")
+        raise typer.Exit(code=1) from exc
+    except RuntimeError as exc:
+        console.print(f"[red]Ingestion failed:[/red] {exc}")
+        raise typer.Exit(code=1) from exc
+
+    if entry is None:
+        console.print(
+            "[yellow]Skipped[/yellow] — a paper with the same DOI already exists."
+        )
+        raise typer.Exit(code=0)
+
+    console.print(f"[green]Ingested[/green] paper [bold]{entry.title}[/bold]")
+    console.print(f"  ID:    {entry.id}")
+    console.print(f"  Topic: {entry.topic}")
+    if entry.doi:
+        console.print(f"  DOI:   {entry.doi}")
+    console.print(f"  Path:  {entry.path}")
+
+
 def _try_qmd_reindex(kb_path: Path) -> None:
     """Attempt to run qmd reindex; skip silently if qmd is not installed."""
     import shutil
