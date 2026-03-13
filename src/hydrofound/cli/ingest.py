@@ -180,6 +180,56 @@ def ingest_paper_cmd(
     console.print(f"  Path:  {entry.path}")
 
 
+@ingest_app.command(name="package")
+def ingest_package_cmd(
+    ctx: typer.Context,
+    name: str = typer.Argument(..., help="Python package name"),
+    python: bool = typer.Option(  # noqa: ARG001
+        False,
+        "--python",
+        help="Treat as Python package (uses griffe). Always enabled for this command.",
+    ),
+    docs_url: str = typer.Option("", "--docs-url", help="Documentation URL to crawl."),
+    no_reindex: bool = typer.Option(
+        False,
+        "--no-reindex",
+        help="Skip qmd reindex after ingestion.",
+    ),
+) -> None:
+    """Ingest a Python package's API and documentation.
+
+    Extracts the public API via griffe (static analysis), optionally fetches
+    web docs via Firecrawl or plain HTTP, and writes the result into
+    kb/packages/<name>/. catalog.json and catalog.md are updated.
+    """
+    from hydrofound.config import load_config
+    from hydrofound.ingestion.package import ingest_package
+
+    kb_path = _resolve_kb(ctx)
+    config = load_config(kb_path)
+
+    try:
+        entry = ingest_package(
+            name,
+            kb_path,
+            config,
+            docs_url=docs_url,
+            no_reindex=no_reindex,
+        )
+    except Exception as exc:  # griffe.LoadingError or unexpected
+        console.print(f"[red]Ingestion failed:[/red] {exc}")
+        raise typer.Exit(code=1) from exc
+
+    console.print(f"[green]Ingested[/green] package [bold]{name}[/bold]")
+    console.print(f"  ID:    {entry.id}")
+    console.print(f"  Files: {', '.join(entry.files)}")
+    if entry.source_url:
+        console.print(f"  Docs:  {entry.source_url}")
+
+    if not no_reindex:
+        _try_qmd_reindex(kb_path)
+
+
 def _try_qmd_reindex(kb_path: Path) -> None:
     """Attempt to run qmd reindex; skip silently if qmd is not installed."""
     import shutil

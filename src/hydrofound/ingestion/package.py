@@ -3,9 +3,15 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from pathlib import Path
 
 import griffe
 from jinja2 import Template
+
+from hydrofound.catalog.index import CatalogEntry, CatalogIndex
+from hydrofound.catalog.render import render_catalog_md
+from hydrofound.config import HydroFoundConfig
+from hydrofound.ingestion.common import build_frontmatter
 
 
 @dataclass
@@ -146,3 +152,185 @@ def render_api_markdown(api: PackageAPI, package_name: str) -> str:
         Rendered markdown string.
     """
     return API_TEMPLATE.render(api=api, package_name=package_name)
+
+
+def ingest_package(
+    package_name: str,
+    kb_path: Path,
+    config: HydroFoundConfig,
+    *,
+    docs_url: str = "",
+    no_reindex: bool = False,
+) -> CatalogEntry:
+    """Full package ingestion pipeline.
+
+    Extracts the package API via griffe, optionally fetches web docs,
+    writes files to packages/<name>/, updates catalog.json, and
+    regenerates catalog.md.
+
+    Args:
+        package_name: Python package name (must be importable).
+        kb_path: Knowledge base root.
+        config: HydroFound configuration.
+        docs_url: Optional documentation URL to crawl.
+        no_reindex: If True, skip qmd reindex.
+
+    Returns:
+        CatalogEntry for the ingested package.
+    """
+    import frontmatter as fm_lib
+
+    # 1. Extract API via griffe
+    api = extract_api(package_name)
+    api_md = render_api_markdown(api, package_name)
+
+    # 2. Optionally fetch web docs
+    docs_md = ""
+    if docs_url and not config.offline_only:
+        docs_md = _fetch_docs(docs_url, config)
+    elif not docs_url and not config.offline_only:
+        # Try to resolve docs URL from PyPI
+        resolved_url = _resolve_docs_url(package_name)
+        if resolved_url:
+            docs_url = resolved_url
+            docs_md = _fetch_docs(resolved_url, config)
+
+    # 3. Write files
+    pkg_dir = kb_path / "packages" / package_name
+    pkg_dir.mkdir(parents=True, exist_ok=True)
+
+    (pkg_dir / "api.md").write_text(api_md)
+    files = ["api.md"]
+
+    if docs_md:
+        (pkg_dir / "docs.md").write_text(docs_md)
+        files.append("docs.md")
+
+    # _index.md with frontmatter
+    fm = build_frontmatter(
+        type="package",
+        id=f"package-{package_name}",
+        name=package_name,
+        source_url=docs_url,
+    )
+
+    index_content = (
+        f"# {package_name}\n\nPython package API reference and documentation.\n"
+    )
+    if docs_url:
+        index_content += f"\n**Documentation:** {docs_url}\n"
+    index_content += f"\n**Files:** {', '.join(files)}\n"
+
+    post = fm_lib.Post(index_content)
+    post.metadata = fm
+    (pkg_dir / "_index.md").write_text(fm_lib.dumps(post))
+
+    # 4. Update catalog
+    catalog = CatalogIndex(kb_path)
+    entry_id = f"package-{package_name}"
+
+    existing = catalog.get(entry_id)
+    if existing:
+        catalog.remove(entry_id)
+
+    entry = CatalogEntry(
+        id=entry_id,
+        type="package",
+        title=package_name,
+        path=f"packages/{package_name}/_index.md",
+        source_url=docs_url,
+        files=files,
+        added=existing.added if existing else fm["added"],
+        updated=fm["added"] if existing else "",
+    )
+    catalog.add(entry)
+
+    # 5. Regenerate catalog.md
+    (kb_path / "catalog.md").write_text(render_catalog_md(catalog.entries))
+
+    return entry
+
+
+def _resolve_docs_url(package_name: str) -> str:
+    """Try to find docs URL from PyPI metadata.
+
+    Args:
+        package_name: PyPI package name.
+
+    Returns:
+        Documentation URL if found, otherwise empty string.
+    """
+    import httpx
+
+    try:
+        resp = httpx.get(f"https://pypi.org/pypi/{package_name}/json", timeout=10)
+        if resp.status_code == 200:
+            data = resp.json()
+            urls = data.get("info", {}).get("project_urls") or {}
+            for key in ["Documentation", "Docs", "documentation", "docs", "Homepage"]:
+                if key in urls:
+                    return urls[key]  # type: ignore[no-any-return]
+    except Exception:
+        pass
+    return ""
+
+
+def _fetch_docs(url: str, config: HydroFoundConfig) -> str:
+    """Fetch docs from URL. Try Firecrawl if key available, else basic httpx.
+
+    Args:
+        url: URL to fetch documentation from.
+        config: HydroFound configuration (used to check for Firecrawl key).
+
+    Returns:
+        Fetched content as a markdown string, or empty string on failure.
+    """
+    if config.firecrawl_key:
+        return _fetch_via_firecrawl(url, config.firecrawl_key)
+    return _fetch_basic(url)
+
+
+def _fetch_via_firecrawl(url: str, api_key: str) -> str:
+    """Fetch page via Firecrawl API.
+
+    Args:
+        url: URL to scrape.
+        api_key: Firecrawl API key.
+
+    Returns:
+        Markdown content from Firecrawl, or empty string on failure.
+    """
+    import httpx
+
+    try:
+        resp = httpx.post(
+            "https://api.firecrawl.dev/v1/scrape",
+            json={"url": url, "formats": ["markdown"]},
+            headers={"Authorization": f"Bearer {api_key}"},
+            timeout=30,
+        )
+        if resp.status_code == 200:
+            return resp.json().get("data", {}).get("markdown", "")  # type: ignore[no-any-return]
+    except Exception:
+        pass
+    return ""
+
+
+def _fetch_basic(url: str) -> str:
+    """Basic HTTP fetch — returns raw response text up to 50 KB.
+
+    Args:
+        url: URL to fetch.
+
+    Returns:
+        Response text (up to 50 000 characters), or empty string on failure.
+    """
+    import httpx
+
+    try:
+        resp = httpx.get(url, timeout=10, follow_redirects=True)
+        if resp.status_code == 200:
+            return resp.text[:50000]
+    except Exception:
+        pass
+    return ""
