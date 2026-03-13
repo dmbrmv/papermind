@@ -32,6 +32,7 @@ def main_callback(
     ctx.obj["offline"] = offline
 
 
+from hydrofound.cli.catalog import catalog_app, remove_command  # noqa: E402
 from hydrofound.cli.ingest import ingest_app  # noqa: E402
 from hydrofound.cli.init import init_command  # noqa: E402
 from hydrofound.cli.search import search_command  # noqa: E402
@@ -39,6 +40,8 @@ from hydrofound.cli.search import search_command  # noqa: E402
 app.command(name="init")(init_command)
 app.add_typer(ingest_app, name="ingest")
 app.command(name="search")(search_command)
+app.add_typer(catalog_app, name="catalog")
+app.command(name="remove")(remove_command)
 
 
 @app.command()
