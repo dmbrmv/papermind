@@ -5,12 +5,15 @@ from __future__ import annotations
 from pathlib import Path
 
 import typer
+from rich.console import Console
 
 app = typer.Typer(
     name="hydrofound",
     help="Scientific knowledge base — papers, packages, codebases → queryable markdown.",
     no_args_is_help=True,
 )
+
+console = Console()
 
 
 def kb_path_option(value: str | None = None) -> Path | None:
@@ -48,6 +51,31 @@ app.command(name="remove")(remove_command)
 app.command(name="discover")(discover_cmd)
 app.command(name="download")(download_cmd)
 app.command(name="doctor")(doctor_command)
+
+
+@app.command(name="reindex")
+def reindex_command(ctx: typer.Context) -> None:
+    """Rebuild catalog from filesystem and regenerate catalog.md."""
+    kb_path = ctx.obj.get("kb") if ctx.obj else None
+    if not kb_path or not (kb_path / ".hydrofound").exists():
+        typer.echo("Error: --kb required and must point to initialized KB", err=True)
+        raise typer.Exit(code=1)
+
+    from hydrofound.catalog.index import CatalogIndex
+    from hydrofound.catalog.render import render_catalog_md
+
+    # Rebuild catalog.json from frontmatter (filesystem is truth)
+    catalog = CatalogIndex.rebuild(kb_path)
+
+    # Regenerate catalog.md
+    (kb_path / "catalog.md").write_text(render_catalog_md(catalog.entries))
+
+    # Trigger qmd reindex if available (best-effort)
+    from hydrofound.query.qmd import qmd_reindex
+
+    qmd_reindex(kb_path)
+
+    console.print(f"Reindexed: {len(catalog.entries)} entries")
 
 
 @app.command(name="serve")
