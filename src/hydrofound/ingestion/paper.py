@@ -182,6 +182,87 @@ def ingest_paper(
     return entry
 
 
+class BatchResult:
+    """Summary of a batch paper ingestion run.
+
+    Attributes:
+        ingested: Number of papers successfully ingested.
+        skipped: Number of papers skipped (duplicate DOI).
+        failed: Number of papers that raised an error during ingestion.
+        errors: Mapping of PDF path to error message for each failure.
+    """
+
+    def __init__(self) -> None:
+        self.ingested: int = 0
+        self.skipped: int = 0
+        self.failed: int = 0
+        self.errors: dict[Path, str] = {}
+
+    def __str__(self) -> str:
+        return f"{self.ingested} ingested, {self.skipped} skipped, {self.failed} failed"
+
+
+def ingest_papers_batch(
+    folder: Path,
+    topic: str,
+    kb_path: Path,
+    config: HydroFoundConfig,
+) -> BatchResult:
+    """Ingest all PDF files in *folder* into the knowledge base.
+
+    Walks *folder* recursively for ``*.pdf`` files.  Each file is processed
+    individually; errors are logged and counted rather than propagated so that
+    the remaining files are always attempted.  A single qmd reindex is issued
+    at the end (not once per file).
+
+    Duplicate-DOI detection follows the same immutable policy as
+    :func:`ingest_paper`: a paper whose DOI already exists in the catalog is
+    silently skipped and counted as *skipped*.
+
+    Args:
+        folder: Directory to walk for ``*.pdf`` files.
+        topic: Topic category applied to every ingested paper.
+        kb_path: Knowledge base root.
+        config: HydroFound configuration.
+
+    Returns:
+        :class:`BatchResult` with ingested / skipped / failed counts.
+    """
+    result = BatchResult()
+
+    pdf_paths = sorted(folder.rglob("*.pdf"))
+    logger.info("Batch ingestion: found %d PDF(s) in %s", len(pdf_paths), folder)
+
+    for pdf_path in pdf_paths:
+        try:
+            entry = ingest_paper(
+                pdf_path,
+                topic,
+                kb_path,
+                config,
+                no_reindex=True,  # Reindex once at end of batch
+            )
+        except Exception as exc:  # noqa: BLE001
+            logger.error("Failed to ingest %s: %s", pdf_path.name, exc)
+            result.failed += 1
+            result.errors[pdf_path] = str(exc)
+            continue
+
+        if entry is None:
+            logger.info("Skipped %s (duplicate DOI).", pdf_path.name)
+            result.skipped += 1
+        else:
+            logger.info("Ingested %s as %r.", pdf_path.name, entry.id)
+            result.ingested += 1
+
+    # Single reindex at end of batch (only if anything was actually ingested).
+    if result.ingested > 0:
+        _try_qmd_reindex(kb_path, config)
+
+    logger.info("Batch complete: %s", result)
+    return result
+
+
 def _try_qmd_reindex(kb_path: Path, config: HydroFoundConfig) -> None:
     """Attempt to run qmd reindex; skip silently if qmd is not installed.
 

@@ -102,12 +102,14 @@ def ingest_codebase(
 @ingest_app.command(name="paper")
 def ingest_paper_cmd(
     ctx: typer.Context,
-    path: Path = typer.Argument(..., help="Path to PDF file."),
+    path: Path = typer.Argument(
+        ..., help="Path to a PDF file or a directory of PDFs (batch mode)."
+    ),
     topic: str = typer.Option(
         "uncategorized",
         "--topic",
         "-t",
-        help="Topic category for the paper.",
+        help="Topic category for the paper(s).",
     ),
     no_reindex: bool = typer.Option(
         False,
@@ -115,27 +117,43 @@ def ingest_paper_cmd(
         help="Skip qmd reindex after ingestion.",
     ),
 ) -> None:
-    """Ingest a single PDF paper into the knowledge base.
+    """Ingest a PDF paper (or a folder of PDFs) into the knowledge base.
 
-    Converts the PDF to markdown via Marker, extracts metadata (title, DOI,
-    year), writes a frontmatter-annotated markdown file, and updates
-    catalog.json and catalog.md.
+    When *path* is a directory, all ``*.pdf`` files found recursively are
+    ingested.  Duplicates (by DOI) are skipped; individual failures are logged
+    but do not abort the batch.  A single reindex is issued at the end.
+
+    When *path* is a file, a single paper is ingested (original behaviour).
     """
     from hydrofound.config import load_config
-    from hydrofound.ingestion.paper import ingest_paper
+    from hydrofound.ingestion.paper import ingest_paper, ingest_papers_batch
 
     kb_path = _resolve_kb(ctx)
-    pdf_path = path.resolve()
+    resolved = path.resolve()
 
-    if not pdf_path.exists():
-        console.print(f"[red]File not found:[/red] {pdf_path}")
+    if not resolved.exists():
+        console.print(f"[red]Path not found:[/red] {resolved}")
         raise typer.Exit(code=1)
 
     config = load_config(kb_path)
 
+    # ---- Batch mode (directory) ------------------------------------------------
+    if resolved.is_dir():
+        result = ingest_papers_batch(resolved, topic, kb_path, config)
+        console.print(
+            f"[green]Batch complete[/green]: "
+            f"[bold]{result.ingested}[/bold] ingested, "
+            f"[yellow]{result.skipped}[/yellow] skipped, "
+            f"[red]{result.failed}[/red] failed"
+        )
+        for pdf_path, error in result.errors.items():
+            console.print(f"  [red]ERROR[/red] {pdf_path.name}: {error}")
+        return
+
+    # ---- Single-file mode ------------------------------------------------------
     try:
         entry = ingest_paper(
-            pdf_path,
+            resolved,
             topic,
             kb_path,
             config,
