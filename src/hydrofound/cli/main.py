@@ -50,6 +50,35 @@ app.command(name="download")(download_cmd)
 app.command(name="doctor")(doctor_command)
 
 
+@app.command(name="serve")
+def serve_command(
+    ctx: typer.Context,
+) -> None:
+    """Start the MCP server (stdio transport)."""
+    import asyncio
+
+    from mcp.server.stdio import stdio_server
+
+    from hydrofound.mcp_server import create_server
+
+    kb_path = ctx.obj.get("kb") if ctx.obj else None
+    if not kb_path:
+        typer.echo("Error: --kb required for serve command", err=True)
+        raise typer.Exit(code=1)
+
+    server = create_server(kb_path)
+
+    async def run() -> None:
+        async with stdio_server() as (read_stream, write_stream):
+            await server.run(
+                read_stream,
+                write_stream,
+                server.create_initialization_options(),
+            )
+
+    asyncio.run(run())
+
+
 @app.command()
 def version() -> None:
     """Print version."""
