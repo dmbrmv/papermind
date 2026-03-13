@@ -34,6 +34,7 @@ def main_callback(
 
 from hydrofound.cli.catalog import catalog_app, remove_command  # noqa: E402
 from hydrofound.cli.discover import discover_cmd  # noqa: E402
+from hydrofound.cli.download import download_cmd  # noqa: E402
 from hydrofound.cli.ingest import ingest_app  # noqa: E402
 from hydrofound.cli.init import init_command  # noqa: E402
 from hydrofound.cli.search import search_command  # noqa: E402
@@ -44,6 +45,7 @@ app.command(name="search")(search_command)
 app.add_typer(catalog_app, name="catalog")
 app.command(name="remove")(remove_command)
 app.command(name="discover")(discover_cmd)
+app.command(name="download")(download_cmd)
 
 
 @app.command()
