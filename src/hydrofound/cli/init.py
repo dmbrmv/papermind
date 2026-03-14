@@ -42,13 +42,18 @@ GITIGNORE = """\
 
 
 def init_command(
+    ctx: typer.Context,
     path: Path = typer.Argument(
         default=None,
         help="Path to create the knowledge base. Default: ~/HydroFound",
     ),
 ) -> None:
     """Initialize a new HydroFound knowledge base."""
-    if path is None:
+    # Prefer --kb global option, then positional arg, then default
+    kb_from_ctx = ctx.obj.get("kb") if ctx.obj else None
+    if path is None and kb_from_ctx is not None:
+        path = kb_from_ctx
+    elif path is None:
         path = Path.home() / "HydroFound"
 
     path = path.resolve()
