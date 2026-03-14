@@ -120,21 +120,38 @@ class CatalogIndex:
                 post = frontmatter.load(md_file)
                 if "type" in post.metadata:
                     rel_path = str(md_file.relative_to(base_path))
+                    # Discover sibling .md files in the same directory
+                    sibling_files = []
+                    parent_dir = md_file.parent
+                    for sibling in sorted(parent_dir.glob("*.md")):
+                        sibling_files.append(str(sibling.relative_to(base_path)))
+                    # Derive ID: use frontmatter id if present, else construct from type+name
+                    entry_type = post.metadata["type"]
+                    entry_id = post.metadata.get("id", "")
+                    if not entry_id:
+                        entry_name = (
+                            post.metadata.get("name", "") or md_file.parent.name
+                        )
+                        entry_id = f"{entry_type}-{entry_name}"
                     entry = CatalogEntry(
-                        id=post.metadata.get("id", ""),
-                        type=post.metadata["type"],
+                        id=entry_id,
+                        type=entry_type,
                         path=rel_path,
-                        title=post.metadata.get("title", ""),
+                        title=post.metadata.get("title", "")
+                        or post.metadata.get("name", ""),
                         topic=post.metadata.get("topic", ""),
                         tags=post.metadata.get("tags", []),
                         added=post.metadata.get("added", ""),
                         updated=post.metadata.get("updated", ""),
                         doi=post.metadata.get("doi", ""),
+                        files=sibling_files,
                     )
                     entries.append(entry)
             except Exception:
                 continue  # skip unparseable files
-        idx = cls(base_path)
+        idx = cls.__new__(cls)
+        idx.base_path = base_path
+        idx._path = base_path / "catalog.json"
         idx.entries = entries
         idx._save()
         return idx

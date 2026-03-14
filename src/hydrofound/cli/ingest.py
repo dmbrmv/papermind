@@ -7,6 +7,8 @@ from pathlib import Path
 import typer
 from rich.console import Console
 
+from hydrofound.ingestion.validation import ValidationError
+
 ingest_app = typer.Typer(
     name="ingest",
     help="Ingest content into the knowledge base.",
@@ -162,7 +164,7 @@ def ingest_paper_cmd(
     except FileNotFoundError as exc:
         console.print(f"[red]Marker not installed:[/red] {exc}")
         raise typer.Exit(code=1) from exc
-    except RuntimeError as exc:
+    except (RuntimeError, ValidationError) as exc:
         console.print(f"[red]Ingestion failed:[/red] {exc}")
         raise typer.Exit(code=1) from exc
 
