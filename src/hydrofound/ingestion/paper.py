@@ -16,12 +16,17 @@ from hydrofound.ingestion.validation import validate_pdf
 logger = logging.getLogger(__name__)
 
 
-def convert_pdf(path: Path, config: HydroFoundConfig) -> str:
+def convert_pdf(
+    path: Path,
+    config: HydroFoundConfig,
+    image_dir: Path | None = None,
+) -> str:
     """Convert PDF to markdown using GLM-OCR.
 
     Args:
         path: Path to the PDF file.
         config: HydroFound configuration.
+        image_dir: If provided, extract embedded figures to this directory.
 
     Returns:
         Markdown string.
@@ -36,6 +41,7 @@ def convert_pdf(path: Path, config: HydroFoundConfig) -> str:
         path,
         model_name=config.ocr_model,
         dpi=config.ocr_dpi,
+        image_dir=image_dir,
     )
 
 
@@ -101,6 +107,7 @@ def ingest_paper(
 
     validate_pdf(pdf_path)
 
+    # First pass: OCR without images to get metadata for path resolution
     markdown = convert_pdf(pdf_path, config)
 
     meta = extract_metadata(markdown)
@@ -121,6 +128,19 @@ def ingest_paper(
 
     slug = entry_id.removeprefix("paper-")
     md_path = topic_dir / f"{slug}.md"
+
+    # Extract embedded images (figures, charts) — best effort
+    try:
+        from hydrofound.ingestion.glm_ocr import extract_images
+
+        image_dir = topic_dir / slug
+        image_files = extract_images(pdf_path, image_dir)
+        if image_files:
+            markdown += "\n\n---\n\n## Figures\n\n"
+            for img_name in image_files:
+                markdown += f"![{img_name}]({slug}/{img_name})\n\n"
+    except Exception:  # noqa: BLE001
+        logger.debug("Image extraction skipped for %s", pdf_path.name)
 
     fm = build_frontmatter(
         type="paper",

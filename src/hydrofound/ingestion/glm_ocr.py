@@ -125,20 +125,70 @@ def _ocr_image(image, processor, model) -> str:
     return output_text.strip()
 
 
+def extract_images(pdf_path: Path, output_dir: Path) -> list[str]:
+    """Extract embedded images from a PDF and save them to output_dir.
+
+    Args:
+        pdf_path: Path to the PDF file.
+        output_dir: Directory to save extracted images.
+
+    Returns:
+        List of saved image filenames (relative to output_dir).
+    """
+    import fitz  # pymupdf
+
+    doc = fitz.open(pdf_path)
+    output_dir.mkdir(parents=True, exist_ok=True)
+    saved = []
+    img_counter = 0
+
+    for page_num, page in enumerate(doc):
+        for img_info in page.get_images(full=True):
+            xref = img_info[0]
+            base_image = doc.extract_image(xref)
+            if base_image is None:
+                continue
+
+            img_bytes = base_image["image"]
+            ext = base_image.get("ext", "png")
+
+            # Skip tiny images (icons, bullets, etc.)
+            if len(img_bytes) < 5000:
+                continue
+
+            img_counter += 1
+            filename = f"figure_{img_counter}.{ext}"
+            (output_dir / filename).write_bytes(img_bytes)
+            saved.append(filename)
+            logger.debug(
+                "Extracted image: %s (page %d, %d bytes)",
+                filename,
+                page_num + 1,
+                len(img_bytes),
+            )
+
+    doc.close()
+    logger.info("Extracted %d image(s) from %s", len(saved), pdf_path.name)
+    return saved
+
+
 def convert_pdf_glm(
     path: Path,
     model_name: str = "zai-org/GLM-OCR",
     dpi: int = 150,
+    image_dir: Path | None = None,
 ) -> str:
     """Convert a PDF file to markdown using GLM-OCR.
 
     Renders each page to an image, runs OCR, and concatenates the results
-    with page break markers.
+    with page break markers. Optionally extracts embedded images.
 
     Args:
         path: Path to the PDF file.
         model_name: HuggingFace model ID for GLM-OCR.
         dpi: Resolution for PDF page rendering.
+        image_dir: If provided, extract embedded images to this directory
+            and append an image gallery section to the markdown.
 
     Returns:
         Concatenated markdown string for all pages.
@@ -164,4 +214,14 @@ def convert_pdf_glm(
         page_text = _ocr_image(img, processor, model)
         pages_md.append(page_text)
 
-    return "\n\n---\n\n".join(pages_md)
+    markdown = "\n\n---\n\n".join(pages_md)
+
+    # Extract embedded images if requested
+    if image_dir is not None:
+        saved_images = extract_images(path, image_dir)
+        if saved_images:
+            markdown += "\n\n---\n\n## Figures\n\n"
+            for img_name in saved_images:
+                markdown += f"![{img_name}]({img_name})\n\n"
+
+    return markdown
