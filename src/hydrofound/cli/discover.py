@@ -83,12 +83,18 @@ def _build_providers(source: str, cfg: HydroFoundConfig) -> list:  # type: ignor
         List of instantiated provider objects.
     """
     from hydrofound.discovery.exa import ExaProvider
+    from hydrofound.discovery.openalex import OpenAlexProvider
     from hydrofound.discovery.semantic_scholar import SemanticScholarProvider
 
+    want_oa = source in ("all", "openalex")
     want_ss = source in ("all", "semantic_scholar")
     want_exa = source in ("all", "exa")
 
     providers = []
+
+    if want_oa:
+        # OpenAlex: free, no key, high PDF hit rate — runs first.
+        providers.append(OpenAlexProvider())
 
     if want_ss:
         # Semantic Scholar works without an API key (rate-limited).
