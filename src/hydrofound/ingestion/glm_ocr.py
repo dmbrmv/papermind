@@ -48,11 +48,12 @@ def _ensure_model(model_name: str) -> tuple:
     from transformers import AutoModelForImageTextToText, AutoProcessor
 
     logger.info("Loading GLM-OCR model: %s", model_name)
-    _processor = AutoProcessor.from_pretrained(model_name)
+    _processor = AutoProcessor.from_pretrained(model_name, trust_remote_code=True)
     _model = AutoModelForImageTextToText.from_pretrained(
         model_name,
         torch_dtype="auto",
         device_map="auto",
+        trust_remote_code=True,
     )
     logger.info("GLM-OCR model loaded on %s", _model.device)
     return _processor, _model
