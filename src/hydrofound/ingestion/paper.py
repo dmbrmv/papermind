@@ -1,4 +1,4 @@
-"""Paper ingestion — PDF → markdown via GLM-OCR (default) or Marker (legacy)."""
+"""Paper ingestion — PDF → markdown via GLM-OCR."""
 
 from __future__ import annotations
 
@@ -17,10 +17,7 @@ logger = logging.getLogger(__name__)
 
 
 def convert_pdf(path: Path, config: HydroFoundConfig) -> str:
-    """Convert PDF to markdown using the configured converter.
-
-    Dispatches to GLM-OCR (default) or Marker (legacy) based on
-    ``config.converter``.
+    """Convert PDF to markdown using GLM-OCR.
 
     Args:
         path: Path to the PDF file.
@@ -31,16 +28,8 @@ def convert_pdf(path: Path, config: HydroFoundConfig) -> str:
 
     Raises:
         ImportError: If GLM-OCR deps are not installed.
-        FileNotFoundError: If Marker is not installed.
         RuntimeError: If conversion fails.
     """
-    if config.converter == "glm-ocr":
-        return _convert_pdf_glm(path, config)
-    return _convert_pdf_marker(path, config)
-
-
-def _convert_pdf_glm(path: Path, config: HydroFoundConfig) -> str:
-    """Convert PDF via GLM-OCR model."""
     from hydrofound.ingestion.glm_ocr import convert_pdf_glm
 
     return convert_pdf_glm(
@@ -48,50 +37,6 @@ def _convert_pdf_glm(path: Path, config: HydroFoundConfig) -> str:
         model_name=config.ocr_model,
         dpi=config.ocr_dpi,
     )
-
-
-def _convert_pdf_marker(path: Path, config: HydroFoundConfig) -> str:
-    """Convert PDF via Marker subprocess (legacy).
-
-    Raises:
-        FileNotFoundError: If Marker is not installed.
-        RuntimeError: If Marker fails or produces no output.
-    """
-    cmd = [config.marker_path, str(path), "--output_format", "markdown"]
-    if config.marker_use_llm:
-        cmd.append("--use_llm")
-
-    try:
-        result = subprocess.run(cmd, capture_output=True, text=True)
-    except FileNotFoundError as exc:
-        raise FileNotFoundError(
-            f"Marker not found at {config.marker_path!r}. "
-            "Install it with: pip install marker-pdf"
-        ) from exc
-
-    if result.returncode != 0:
-        raise RuntimeError(
-            f"Marker failed with exit code {result.returncode}: {result.stderr}"
-        )
-
-    # Marker creates a directory <input_stem>/ next to the input file and writes
-    # <filename>.md inside it. Check that location first.
-    output_dir = path.parent / path.stem
-    if output_dir.exists():
-        md_files = list(output_dir.glob("*.md"))
-        if md_files:
-            return md_files[0].read_text()
-
-    # Newer Marker versions may write a .md file directly beside the input.
-    md_path = path.with_suffix(".md")
-    if md_path.exists():
-        return md_path.read_text()
-
-    # Fall back to stdout (some Marker versions stream output).
-    if result.stdout.strip():
-        return result.stdout
-
-    raise RuntimeError(f"Marker produced no output for {path}")
 
 
 def extract_metadata(markdown: str) -> dict:
@@ -138,7 +83,7 @@ def ingest_paper(
 ) -> CatalogEntry | None:
     """Full paper ingestion pipeline.
 
-    Validates the PDF, converts it to markdown via Marker, extracts metadata,
+    Validates the PDF, converts it to markdown via GLM-OCR, extracts metadata,
     checks for duplicate DOIs (immutable policy), writes the markdown file with
     YAML frontmatter, and updates catalog.json and catalog.md.
 

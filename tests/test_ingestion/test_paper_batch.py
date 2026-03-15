@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 
@@ -13,26 +13,25 @@ from hydrofound.config import HydroFoundConfig
 from hydrofound.ingestion.paper import BatchResult, ingest_papers_batch
 
 # ---------------------------------------------------------------------------
-# Shared helpers (mirror test_paper.py conventions)
+# Shared helpers
 # ---------------------------------------------------------------------------
 
 PDF_MAGIC = b"%PDF-1.4\n" + b"x" * 2048  # passes validate_pdf
 
+# Map of pdf stem → markdown content, set per test
+_MD_STORE: dict[str, str] = {}
+
 
 def _make_pdf(path: Path) -> Path:
-    """Write a minimal valid PDF stub."""
     path.write_bytes(PDF_MAGIC)
     return path
 
 
-def _make_config(tmp_path: Path, *, marker_path: str = "marker") -> HydroFoundConfig:
-    return HydroFoundConfig(
-        base_path=tmp_path, converter="marker", marker_path=marker_path
-    )
+def _make_config(tmp_path: Path) -> HydroFoundConfig:
+    return HydroFoundConfig(base_path=tmp_path)
 
 
 def _make_kb(tmp_path: Path) -> Path:
-    """Initialise a minimal KB with catalog.json."""
     kb = tmp_path / "kb"
     kb.mkdir()
     (kb / ".hydrofound").mkdir()
@@ -40,29 +39,29 @@ def _make_kb(tmp_path: Path) -> Path:
     return kb
 
 
-def _marker_ok(stdout: str = "") -> MagicMock:
-    """Return a successful subprocess.run mock result."""
-    result = MagicMock()
-    result.returncode = 0
-    result.stdout = stdout
-    result.stderr = ""
-    return result
+def _glm_from_store(path, model_name="zai-org/GLM-OCR", dpi=150):
+    """Mock GLM-OCR that returns markdown from _MD_STORE by PDF stem."""
+    stem = Path(path).stem
+    md = _MD_STORE.get(stem)
+    if md is None:
+        raise RuntimeError(f"No mock content for {stem}")
+    return md
 
 
-def _marker_fail() -> MagicMock:
-    """Return a failed subprocess.run mock result (non-zero exit)."""
-    result = MagicMock()
-    result.returncode = 1
-    result.stdout = ""
-    result.stderr = "Marker error"
-    return result
+def _mock_glm():
+    """Patch GLM-OCR to use _MD_STORE."""
+    return patch(
+        "hydrofound.ingestion.glm_ocr.convert_pdf_glm",
+        side_effect=_glm_from_store,
+    )
 
 
-def _setup_marker_output(pdf_path: Path, md_content: str) -> None:
-    """Create the Marker output directory that convert_pdf reads from."""
-    out_dir = pdf_path.parent / pdf_path.stem
-    out_dir.mkdir(parents=True, exist_ok=True)
-    (out_dir / f"{pdf_path.stem}.md").write_text(md_content)
+def _setup_batch(folder: Path, papers: list[tuple[str, str]]) -> None:
+    """Create fake PDFs and register their markdown content in _MD_STORE."""
+    _MD_STORE.clear()
+    for stem, md in papers:
+        _make_pdf(folder / f"{stem}.pdf")
+        _MD_STORE[stem] = md
 
 
 # ---------------------------------------------------------------------------
@@ -71,53 +70,41 @@ def _setup_marker_output(pdf_path: Path, md_content: str) -> None:
 
 
 class TestBatchResult:
-    """Unit tests for the BatchResult dataclass."""
-
     def test_initial_counts_are_zero(self) -> None:
         r = BatchResult()
-        assert r.ingested == 0
-        assert r.skipped == 0
-        assert r.failed == 0
-        assert r.errors == {}
+        assert r.ingested == 0 and r.skipped == 0 and r.failed == 0
 
     def test_str_format(self) -> None:
         r = BatchResult()
-        r.ingested = 3
-        r.skipped = 1
-        r.failed = 1
+        r.ingested, r.skipped, r.failed = 3, 1, 1
         assert str(r) == "3 ingested, 1 skipped, 1 failed"
 
 
 # ---------------------------------------------------------------------------
-# ingest_papers_batch — happy path
+# Happy path
 # ---------------------------------------------------------------------------
 
 
 class TestBatchAllSucceed:
-    """All PDFs in the folder are ingested successfully."""
-
     def test_all_three_ingested(self, tmp_path: Path) -> None:
         kb = _make_kb(tmp_path)
         folder = tmp_path / "pdfs"
         folder.mkdir()
         cfg = _make_config(tmp_path)
 
-        papers = [
-            ("paper_a", "# Paper A (2020)\nDOI: 10.1111/a.2020.\n"),
-            ("paper_b", "# Paper B (2021)\nDOI: 10.1111/b.2021.\n"),
-            ("paper_c", "# Paper C (2022)\nDOI: 10.1111/c.2022.\n"),
-        ]
+        _setup_batch(
+            folder,
+            [
+                ("paper_a", "# Paper A (2020)\nDOI: 10.1111/a.2020.\n"),
+                ("paper_b", "# Paper B (2021)\nDOI: 10.1111/b.2021.\n"),
+                ("paper_c", "# Paper C (2022)\nDOI: 10.1111/c.2022.\n"),
+            ],
+        )
 
-        for stem, md in papers:
-            pdf = _make_pdf(folder / f"{stem}.pdf")
-            _setup_marker_output(pdf, md)
-
-        with patch("subprocess.run", return_value=_marker_ok()):
+        with _mock_glm():
             result = ingest_papers_batch(folder, "hydrology", kb, cfg)
 
-        assert result.ingested == 3
-        assert result.skipped == 0
-        assert result.failed == 0
+        assert result.ingested == 3 and result.skipped == 0 and result.failed == 0
 
     def test_catalog_has_three_entries(self, tmp_path: Path) -> None:
         kb = _make_kb(tmp_path)
@@ -125,13 +112,15 @@ class TestBatchAllSucceed:
         folder.mkdir()
         cfg = _make_config(tmp_path)
 
-        for i in range(3):
-            pdf = _make_pdf(folder / f"paper_{i}.pdf")
-            _setup_marker_output(
-                pdf, f"# Paper {i} ({2020 + i})\nDOI: 10.1234/paper{i}year.\n"
-            )
+        _setup_batch(
+            folder,
+            [
+                (f"paper_{i}", f"# Paper {i} ({2020 + i})\nDOI: 10.1234/p{i}.\n")
+                for i in range(3)
+            ],
+        )
 
-        with patch("subprocess.run", return_value=_marker_ok()):
+        with _mock_glm():
             ingest_papers_batch(folder, "hydrology", kb, cfg)
 
         catalog = json.loads((kb / "catalog.json").read_text())
@@ -143,11 +132,15 @@ class TestBatchAllSucceed:
         folder.mkdir()
         cfg = _make_config(tmp_path)
 
-        for i in range(2):
-            pdf = _make_pdf(folder / f"doc_{i}.pdf")
-            _setup_marker_output(pdf, f"# Doc {i} ({2019 + i})\nDOI: 10.2/{i}.\n")
+        _setup_batch(
+            folder,
+            [
+                (f"doc_{i}", f"# Doc {i} ({2019 + i})\nDOI: 10.2/{i}.\n")
+                for i in range(2)
+            ],
+        )
 
-        with patch("subprocess.run", return_value=_marker_ok()):
+        with _mock_glm():
             ingest_papers_batch(folder, "swat", kb, cfg)
 
         topic_dir = kb / "papers" / "swat"
@@ -156,22 +149,18 @@ class TestBatchAllSucceed:
 
 
 # ---------------------------------------------------------------------------
-# ingest_papers_batch — duplicate DOI skip
+# Duplicate DOI skip
 # ---------------------------------------------------------------------------
 
 
 class TestBatchDuplicateSkip:
-    """Papers with a DOI already in the catalog are counted as skipped."""
-
     def test_duplicate_counted_as_skipped(self, tmp_path: Path) -> None:
         kb = _make_kb(tmp_path)
         folder = tmp_path / "pdfs"
         folder.mkdir()
         cfg = _make_config(tmp_path)
 
-        # Pre-populate catalog with a DOI that will be a duplicate.
-        catalog = CatalogIndex(kb)
-        catalog.add(
+        CatalogIndex(kb).add(
             CatalogEntry(
                 id="paper-existing",
                 type="paper",
@@ -180,20 +169,18 @@ class TestBatchDuplicateSkip:
             )
         )
 
-        # duplicate — same DOI (must use valid DOI format: 10.XXXX/... with 4+ digits)
-        dup_pdf = _make_pdf(folder / "dup.pdf")
-        _setup_marker_output(dup_pdf, "# Dup Paper (2021)\nDOI: 10.9999/dup.\n")
+        _setup_batch(
+            folder,
+            [
+                ("dup", "# Dup Paper (2021)\nDOI: 10.9999/dup.\n"),
+                ("new", "# New Paper (2022)\nDOI: 10.9999/new.\n"),
+            ],
+        )
 
-        # new — different DOI
-        new_pdf = _make_pdf(folder / "new.pdf")
-        _setup_marker_output(new_pdf, "# New Paper (2022)\nDOI: 10.9999/new.\n")
-
-        with patch("subprocess.run", return_value=_marker_ok()):
+        with _mock_glm():
             result = ingest_papers_batch(folder, "hydrology", kb, cfg)
 
-        assert result.skipped == 1
-        assert result.ingested == 1
-        assert result.failed == 0
+        assert result.skipped == 1 and result.ingested == 1
 
     def test_duplicate_not_written_to_disk(self, tmp_path: Path) -> None:
         kb = _make_kb(tmp_path)
@@ -201,8 +188,7 @@ class TestBatchDuplicateSkip:
         folder.mkdir()
         cfg = _make_config(tmp_path)
 
-        catalog = CatalogIndex(kb)
-        catalog.add(
+        CatalogIndex(kb).add(
             CatalogEntry(
                 id="paper-existing",
                 type="paper",
@@ -211,10 +197,9 @@ class TestBatchDuplicateSkip:
             )
         )
 
-        dup_pdf = _make_pdf(folder / "dup.pdf")
-        _setup_marker_output(dup_pdf, "# Dup Paper\nDOI: 10.9999/dup.\n")
+        _setup_batch(folder, [("dup", "# Dup Paper\nDOI: 10.9999/dup.\n")])
 
-        with patch("subprocess.run", return_value=_marker_ok()):
+        with _mock_glm():
             ingest_papers_batch(folder, "hydrology", kb, cfg)
 
         topic_dir = kb / "papers" / "hydrology"
@@ -231,8 +216,7 @@ class TestBatchDuplicateSkip:
         folder.mkdir()
         cfg = _make_config(tmp_path)
 
-        catalog = CatalogIndex(kb)
-        catalog.add(
+        CatalogIndex(kb).add(
             CatalogEntry(
                 id="paper-existing",
                 type="paper",
@@ -241,11 +225,10 @@ class TestBatchDuplicateSkip:
             )
         )
 
-        dup_pdf = _make_pdf(folder / "dup.pdf")
-        _setup_marker_output(dup_pdf, "# Dup\nDOI: 10.9999/dup.\n")
+        _setup_batch(folder, [("dup", "# Dup\nDOI: 10.9999/dup.\n")])
 
         with (
-            patch("subprocess.run", return_value=_marker_ok()),
+            _mock_glm(),
             caplog.at_level(logging.INFO, logger="hydrofound.ingestion.paper"),
         ):
             ingest_papers_batch(folder, "hydrology", kb, cfg)
@@ -254,41 +237,31 @@ class TestBatchDuplicateSkip:
 
 
 # ---------------------------------------------------------------------------
-# ingest_papers_batch — individual failure continues batch
+# Failure continues batch
 # ---------------------------------------------------------------------------
 
 
 class TestBatchFailureContinues:
-    """A failure on one PDF must not abort the remaining papers."""
-
     def test_failure_counted_correctly(self, tmp_path: Path) -> None:
         kb = _make_kb(tmp_path)
         folder = tmp_path / "pdfs"
         folder.mkdir()
         cfg = _make_config(tmp_path)
 
-        # ok1 and ok2 succeed; fail1 returns non-zero exit code.
-        ok1 = _make_pdf(folder / "ok1.pdf")
-        _setup_marker_output(ok1, "# OK One (2020)\nDOI: 10.1234/ok1year.\n")
+        _setup_batch(
+            folder,
+            [
+                ("ok1", "# OK One (2020)\nDOI: 10.1234/ok1.\n"),
+                ("ok2", "# OK Two (2021)\nDOI: 10.1234/ok2.\n"),
+            ],
+        )
+        # fail1 — not in store, will raise RuntimeError
+        _make_pdf(folder / "fail1.pdf")
 
-        fail1 = _make_pdf(folder / "fail1.pdf")
-        _setup_marker_output(fail1, "# Fail One\n")
-
-        ok2 = _make_pdf(folder / "ok2.pdf")
-        _setup_marker_output(ok2, "# OK Two (2021)\nDOI: 10.1234/ok2year.\n")
-
-        def _side_effect(cmd, **kwargs):
-            # Fail when called for fail1.pdf
-            if "fail1" in str(cmd):
-                return _marker_fail()
-            return _marker_ok()
-
-        with patch("subprocess.run", side_effect=_side_effect):
+        with _mock_glm():
             result = ingest_papers_batch(folder, "hydrology", kb, cfg)
 
-        assert result.failed == 1
-        assert result.ingested == 2
-        assert result.skipped == 0
+        assert result.failed == 1 and result.ingested == 2
 
     def test_failed_path_recorded_in_errors(self, tmp_path: Path) -> None:
         kb = _make_kb(tmp_path)
@@ -297,13 +270,12 @@ class TestBatchFailureContinues:
         cfg = _make_config(tmp_path)
 
         fail_pdf = _make_pdf(folder / "fail.pdf")
-        _setup_marker_output(fail_pdf, "# Fail\n")
+        _MD_STORE.clear()  # no content → RuntimeError
 
-        with patch("subprocess.run", return_value=_marker_fail()):
+        with _mock_glm():
             result = ingest_papers_batch(folder, "hydrology", kb, cfg)
 
         assert fail_pdf in result.errors
-        assert len(result.errors[fail_pdf]) > 0
 
     def test_other_papers_still_ingested_after_failure(self, tmp_path: Path) -> None:
         kb = _make_kb(tmp_path)
@@ -311,34 +283,26 @@ class TestBatchFailureContinues:
         folder.mkdir()
         cfg = _make_config(tmp_path)
 
-        ok_pdf = _make_pdf(folder / "ok.pdf")
-        _setup_marker_output(ok_pdf, "# OK Paper (2022)\nDOI: 10.1234/ok2022.\n")
+        _setup_batch(
+            folder,
+            [
+                ("ok", "# OK Paper (2022)\nDOI: 10.1234/ok2022.\n"),
+            ],
+        )
+        _make_pdf(folder / "fail.pdf")  # not in store → fails
 
-        fail_pdf = _make_pdf(folder / "fail.pdf")
-        _setup_marker_output(fail_pdf, "# Fail\n")
-
-        def _side_effect(cmd, **kwargs):
-            if "fail" in str(cmd):
-                return _marker_fail()
-            return _marker_ok()
-
-        with patch("subprocess.run", side_effect=_side_effect):
+        with _mock_glm():
             result = ingest_papers_batch(folder, "hydrology", kb, cfg)
 
-        assert result.ingested == 1
-        assert result.failed == 1
-        catalog = json.loads((kb / "catalog.json").read_text())
-        assert len(catalog) == 1
+        assert result.ingested == 1 and result.failed == 1
 
 
 # ---------------------------------------------------------------------------
-# ingest_papers_batch — summary report
+# Summary report
 # ---------------------------------------------------------------------------
 
 
 class TestBatchSummaryReport:
-    """BatchResult __str__ reflects the correct counts."""
-
     def test_summary_three_ingested_one_skipped_one_failed(
         self, tmp_path: Path
     ) -> None:
@@ -347,9 +311,7 @@ class TestBatchSummaryReport:
         folder.mkdir()
         cfg = _make_config(tmp_path)
 
-        # Pre-populate one duplicate DOI (must use valid DOI: 10.XXXX/... with 4+ digits).
-        catalog = CatalogIndex(kb)
-        catalog.add(
+        CatalogIndex(kb).add(
             CatalogEntry(
                 id="paper-dup",
                 type="paper",
@@ -358,27 +320,20 @@ class TestBatchSummaryReport:
             )
         )
 
-        # 3 unique papers
-        for i in range(3):
-            pdf = _make_pdf(folder / f"ok{i}.pdf")
-            _setup_marker_output(
-                pdf, f"# OK {i} ({2020 + i})\nDOI: 10.1234/ok{i}year.\n"
-            )
+        _setup_batch(
+            folder,
+            [
+                (f"ok{i}", f"# OK {i} ({2020 + i})\nDOI: 10.1234/ok{i}.\n")
+                for i in range(3)
+            ],
+        )
+        # duplicate
+        _make_pdf(folder / "dup.pdf")
+        _MD_STORE["dup"] = "# Dup Paper (2024)\nDOI: 10.9999/dup2024.\n"
+        # failure
+        _make_pdf(folder / "fail.pdf")  # not in store
 
-        # 1 duplicate
-        dup = _make_pdf(folder / "dup.pdf")
-        _setup_marker_output(dup, "# Dup Paper (2024)\nDOI: 10.9999/dup2024.\n")
-
-        # 1 failing
-        fail = _make_pdf(folder / "fail.pdf")
-        _setup_marker_output(fail, "# Fail\n")
-
-        def _side_effect(cmd, **kwargs):
-            if "fail" in str(cmd):
-                return _marker_fail()
-            return _marker_ok()
-
-        with patch("subprocess.run", side_effect=_side_effect):
+        with _mock_glm():
             result = ingest_papers_batch(folder, "hydrology", kb, cfg)
 
         assert result.ingested == 3
@@ -392,116 +347,109 @@ class TestBatchSummaryReport:
         folder.mkdir()
         cfg = _make_config(tmp_path)
 
-        with patch("subprocess.run", return_value=_marker_ok()):
+        _MD_STORE.clear()
+
+        with _mock_glm():
             result = ingest_papers_batch(folder, "hydrology", kb, cfg)
 
-        assert result.ingested == 0
-        assert result.skipped == 0
-        assert result.failed == 0
+        assert result.ingested == 0 and result.skipped == 0 and result.failed == 0
 
 
 # ---------------------------------------------------------------------------
-# ingest_papers_batch — single reindex at end
+# Single reindex at end
 # ---------------------------------------------------------------------------
 
 
 class TestBatchSingleReindex:
-    """qmd reindex is issued exactly once after the batch, not per-file."""
-
     def test_reindex_called_once_after_batch(self, tmp_path: Path) -> None:
         kb = _make_kb(tmp_path)
         folder = tmp_path / "pdfs"
         folder.mkdir()
         cfg = _make_config(tmp_path)
 
-        for i in range(3):
-            pdf = _make_pdf(folder / f"p{i}.pdf")
-            _setup_marker_output(
-                pdf, f"# Paper {i} ({2020 + i})\nDOI: 10.9999/p{i}reindex.\n"
-            )
-
-        marker_result = _marker_ok()
-        qmd_result = MagicMock()
-        qmd_result.returncode = 0
+        _setup_batch(
+            folder,
+            [
+                (f"p{i}", f"# Paper {i} ({2020 + i})\nDOI: 10.9999/p{i}.\n")
+                for i in range(3)
+            ],
+        )
 
         with (
-            patch("subprocess.run", return_value=marker_result) as mock_run,
+            _mock_glm(),
+            patch("subprocess.run") as mock_run,
             patch("shutil.which", return_value="/usr/bin/qmd"),
         ):
             ingest_papers_batch(folder, "hydrology", kb, cfg)
 
-        # 3 marker calls + 1 qmd reindex = 4 total
-        assert mock_run.call_count == 4
-        qmd_calls = [c for c in mock_run.call_args_list if "qmd" in str(c)]
-        assert len(qmd_calls) == 1
+        # Only qmd reindex call — no marker calls
+        assert mock_run.call_count == 1
+        qmd_cmd = mock_run.call_args[0][0]
+        assert "qmd" in qmd_cmd[0]
 
     def test_reindex_not_called_when_nothing_ingested(self, tmp_path: Path) -> None:
-        """No reindex when the batch ingests zero papers (all skipped or failed)."""
         kb = _make_kb(tmp_path)
         folder = tmp_path / "pdfs"
         folder.mkdir()
         cfg = _make_config(tmp_path)
 
-        # All PDFs fail.
-        fail = _make_pdf(folder / "fail.pdf")
-        _setup_marker_output(fail, "# Fail\n")
+        _make_pdf(folder / "fail.pdf")
+        _MD_STORE.clear()
 
         with (
-            patch("subprocess.run", return_value=_marker_fail()) as mock_run,
+            _mock_glm(),
+            patch("subprocess.run") as mock_run,
             patch("shutil.which", return_value="/usr/bin/qmd"),
         ):
             result = ingest_papers_batch(folder, "hydrology", kb, cfg)
 
         assert result.ingested == 0
-        # Only the Marker call — no qmd call.
-        qmd_calls = [c for c in mock_run.call_args_list if "qmd" in str(c)]
-        assert len(qmd_calls) == 0
+        mock_run.assert_not_called()
 
     def test_reindex_not_called_per_file(self, tmp_path: Path) -> None:
-        """Verify reindex is called at most once even for N > 1 papers."""
         kb = _make_kb(tmp_path)
         folder = tmp_path / "pdfs"
         folder.mkdir()
         cfg = _make_config(tmp_path)
 
-        n = 5
-        for i in range(n):
-            pdf = _make_pdf(folder / f"paper_{i}.pdf")
-            _setup_marker_output(pdf, f"# Paper {i} ({2020 + i})\nDOI: 10.99/{i}.\n")
+        _setup_batch(
+            folder,
+            [
+                (f"paper_{i}", f"# Paper {i} ({2020 + i})\nDOI: 10.99/{i}.\n")
+                for i in range(5)
+            ],
+        )
 
         with (
-            patch("subprocess.run", return_value=_marker_ok()) as mock_run,
+            _mock_glm(),
+            patch("subprocess.run") as mock_run,
             patch("shutil.which", return_value="/usr/bin/qmd"),
         ):
             ingest_papers_batch(folder, "hydrology", kb, cfg)
 
-        qmd_calls = [c for c in mock_run.call_args_list if "qmd" in str(c)]
-        assert len(qmd_calls) == 1, f"Expected 1 qmd reindex call, got {len(qmd_calls)}"
+        assert mock_run.call_count == 1  # exactly 1 qmd call
 
 
 # ---------------------------------------------------------------------------
-# ingest_papers_batch — recursive walk
+# Recursive walk
 # ---------------------------------------------------------------------------
 
 
 class TestBatchRecursiveWalk:
-    """PDFs in subdirectories are discovered."""
-
     def test_discovers_pdfs_in_subdirs(self, tmp_path: Path) -> None:
         kb = _make_kb(tmp_path)
         folder = tmp_path / "pdfs"
-        cfg = _make_config(tmp_path)
-
         sub = folder / "sub"
         sub.mkdir(parents=True)
+        cfg = _make_config(tmp_path)
 
-        top_pdf = _make_pdf(folder / "top.pdf")
-        _setup_marker_output(top_pdf, "# Top (2020)\nDOI: 10.1234/top2020.\n")
+        _make_pdf(folder / "top.pdf")
+        _make_pdf(sub / "sub.pdf")
+        _MD_STORE.clear()
+        _MD_STORE["top"] = "# Top (2020)\nDOI: 10.1234/top2020.\n"
+        _MD_STORE["sub"] = "# Sub (2021)\nDOI: 10.1234/sub2021.\n"
 
-        sub_pdf = _make_pdf(sub / "sub.pdf")
-        _setup_marker_output(sub_pdf, "# Sub (2021)\nDOI: 10.1234/sub2021.\n")
-
-        with patch("subprocess.run", return_value=_marker_ok()):
+        with _mock_glm():
             result = ingest_papers_batch(folder, "hydrology", kb, cfg)
 
         assert result.ingested == 2

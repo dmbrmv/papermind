@@ -12,11 +12,10 @@ HydroFound ingests heterogeneous scientific sources — PDFs, PyPI packages, and
 pip install hydrofound
 ```
 
-**With PDF ingestion (requires [Marker](https://github.com/VikParuchuri/marker) installed separately):**
+**With PDF ingestion (GLM-OCR — requires GPU):**
 
 ```bash
-pip install hydrofound
-pip install marker-pdf          # GPL-3.0 — installed separately to avoid license infection
+pip install "hydrofound[ocr]"
 ```
 
 **With browser-based package docs:**
@@ -26,7 +25,7 @@ pip install "hydrofound[browser]"
 playwright install chromium
 ```
 
-**Requirements:** Python 3.11+, optional external tools: `marker` (PDF→MD), `qmd` (semantic search)
+**Requirements:** Python 3.11+, GPU recommended for PDF ingestion, optional: `qmd` (semantic search)
 
 ## Quick Start
 
@@ -153,8 +152,8 @@ semantic_scholar_key = "" # optional — higher rate limits
 exa_key = ""              # required for Exa discovery
 
 [ingestion]
-marker_path = "marker"        # path to marker binary
-marker_use_llm = false        # enable LLM-assisted PDF parsing (slower, better)
+ocr_model = "zai-org/GLM-OCR"  # HuggingFace model for PDF OCR
+ocr_dpi = 150                  # DPI for PDF page rendering
 default_paper_topic = "uncategorized"
 
 [firecrawl]
@@ -193,11 +192,12 @@ offline_only = false      # equivalent to passing --offline on every command
 
 Markdown files with YAML frontmatter are the source of truth. `catalog.json` is a derived cache and can always be rebuilt with `hydrofound --kb <path> reindex`.
 
+## PDF OCR
+
+HydroFound uses [GLM-OCR](https://huggingface.co/zai-org/GLM-OCR) (MIT, 0.9B params) for PDF→markdown conversion. Install with `pip install "hydrofound[ocr]"`. The model is downloaded from HuggingFace on first use (~2GB, cached).
+
 ## External Tools
 
-HydroFound calls these as subprocesses (not Python dependencies):
-
-- **[Marker](https://github.com/VikParuchuri/marker)** (GPL-3.0) — PDF to markdown conversion. Called as a subprocess to avoid GPL license propagation to the hydrofound package.
 - **[qmd](https://github.com/simonw/qmd)** (optional) — semantic vector search. Falls back to grep-based search when unavailable.
 
 ## Contributing

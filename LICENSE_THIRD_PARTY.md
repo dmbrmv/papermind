@@ -58,15 +58,30 @@ This document lists all runtime dependencies of HydroFound and their licenses.
 
 ---
 
-## External Tools (subprocess, not Python dependencies)
+## Optional OCR Dependencies (hydrofound[ocr])
 
-These tools are invoked as subprocesses and are not Python dependencies of this package. Their licenses do not propagate to hydrofound.
+### transformers
+- **License**: Apache-2.0
+- **URL**: https://github.com/huggingface/transformers
+- **Used for**: Loading and running GLM-OCR model for PDF conversion
 
-### Marker
-- **License**: GPL-3.0
-- **URL**: https://github.com/VikParuchuri/marker
-- **Used for**: PDF to markdown conversion
-- **Note**: Called as a subprocess to avoid GPL license propagation. Must be installed separately by the user.
+### torch (PyTorch)
+- **License**: BSD-3-Clause
+- **URL**: https://github.com/pytorch/pytorch
+- **Used for**: Model inference backend
+
+### pymupdf
+- **License**: AGPL-3.0 (with commercial license available)
+- **URL**: https://github.com/pymupdf/PyMuPDF
+- **Used for**: PDF page rendering to images for OCR
+
+### GLM-OCR (model weights)
+- **License**: MIT
+- **URL**: https://huggingface.co/zai-org/GLM-OCR
+- **Used for**: PDF to markdown OCR conversion
+- **Note**: Model weights downloaded from HuggingFace on first use
+
+## External Tools (subprocess)
 
 ### qmd
 - **License**: See upstream project for current license

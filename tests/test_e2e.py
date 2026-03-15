@@ -1,13 +1,12 @@
 """End-to-end integration tests for HydroFound CLI.
 
 These tests exercise full workflows: init → ingest → search → catalog → remove → reindex.
-They use CliRunner (in-process) and mock external tools (marker) where needed.
+They use CliRunner (in-process) and mock GLM-OCR where needed.
 """
 
 from __future__ import annotations
 
 import json
-import stat
 from pathlib import Path
 from unittest.mock import patch
 
@@ -59,32 +58,6 @@ def _make_fake_pdf(path: Path) -> Path:
     content = b"%PDF-1.4\n" + b"% This is a test PDF\n" * 100
     path.write_bytes(content)
     return path
-
-
-def _make_marker_script(tmp_path: Path) -> Path:
-    """Create a fake marker script that converts 'PDF' to markdown."""
-    script = tmp_path / "fake_marker"
-    script.write_text(
-        "#!/bin/bash\n"
-        "# Fake marker — reads PDF, outputs markdown in a subdirectory\n"
-        'INPUT="$1"\n'
-        'STEM=$(basename "$INPUT" .pdf)\n'
-        'DIR=$(dirname "$INPUT")/$STEM\n'
-        'mkdir -p "$DIR"\n'
-        "cat > \"$DIR/$STEM.md\" << 'MDEOF'\n"
-        "# Differentiable Hydrological Modeling\n"
-        "\n"
-        "A novel approach to rainfall-runoff simulation (2024).\n"
-        "\n"
-        "DOI: 10.1029/2023WR034567\n"
-        "\n"
-        "## Abstract\n"
-        "\n"
-        "We present a differentiable model for streamflow prediction.\n"
-        "MDEOF\n"
-    )
-    script.chmod(script.stat().st_mode | stat.S_IEXEC)
-    return script
 
 
 # ===========================================================================
@@ -193,7 +166,7 @@ def test_package_ingest_and_search(tmp_path: Path) -> None:
 
 
 # ===========================================================================
-# Test 4: Paper ingestion with mocked marker
+# Test 4: Paper ingestion with mocked GLM-OCR
 # ===========================================================================
 
 
@@ -211,7 +184,7 @@ def test_paper_ingest_via_glm_mock(tmp_path: Path) -> None:
     )
 
     with patch(
-        "hydrofound.ingestion.paper._convert_pdf_glm",
+        "hydrofound.ingestion.glm_ocr.convert_pdf_glm",
         return_value=markdown_output,
     ):
         result = runner.invoke(
@@ -299,12 +272,12 @@ def test_paper_nonexistent_file(tmp_path: Path) -> None:
 
 
 # ===========================================================================
-# Test 6: Batch paper ingestion with mock marker
+# Test 6: Batch paper ingestion with mocked GLM-OCR
 # ===========================================================================
 
 
 def test_batch_paper_ingest(tmp_path: Path) -> None:
-    """Batch ingest a folder of PDFs with mock marker."""
+    """Batch ingest a folder of PDFs with mocked GLM-OCR."""
     kb = _init_kb(tmp_path)
 
     # Create 3 fake PDFs
@@ -315,14 +288,14 @@ def test_batch_paper_ingest(tmp_path: Path) -> None:
 
     call_count = {"n": 0}
 
-    def fake_glm_convert(path, config):
+    def fake_glm_convert(path, model_name="", dpi=150):
         call_count["n"] += 1
         return (
             f"# Paper {call_count['n']}\n\nContent of paper {call_count['n']} (2024).\n"
         )
 
     with patch(
-        "hydrofound.ingestion.paper._convert_pdf_glm",
+        "hydrofound.ingestion.glm_ocr.convert_pdf_glm",
         side_effect=fake_glm_convert,
     ):
         result = runner.invoke(
@@ -350,7 +323,7 @@ def test_duplicate_doi_rejected(tmp_path: Path) -> None:
     markdown = "# Same Paper\n\nDOI: 10.1234/test-doi-duplicate\n\nContent (2024).\n"
 
     with patch(
-        "hydrofound.ingestion.paper._convert_pdf_glm",
+        "hydrofound.ingestion.glm_ocr.convert_pdf_glm",
         return_value=markdown,
     ):
         # First ingest

@@ -22,11 +22,8 @@ semantic_scholar_key = ""
 exa_key = ""
 
 [ingestion]
-converter = "glm-ocr"        # "glm-ocr" (default, requires hydrofound[ocr]) or "marker" (legacy)
-ocr_model = "zai-org/GLM-OCR"
-ocr_dpi = 150
-marker_path = "marker"        # only used if converter = "marker"
-marker_use_llm = false
+ocr_model = "zai-org/GLM-OCR"   # HuggingFace model for PDF OCR
+ocr_dpi = 150                    # DPI for PDF page rendering
 default_paper_topic = "uncategorized"
 
 [firecrawl]

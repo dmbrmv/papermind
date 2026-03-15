@@ -46,11 +46,6 @@ def doctor_command(
             " — pip install 'hydrofound[ocr]'"
         )
 
-    # Check legacy marker
-    marker_found = shutil.which("marker") is not None
-    icon = "[green]✓[/green]" if marker_found else "[dim]·[/dim]"
-    console.print(f"  {icon} marker       — Legacy PDF conversion (optional)")
-
     # Check optional playwright
     try:
         import playwright  # noqa: F401

@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import subprocess
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -32,13 +31,13 @@ def test_is_available_returns_bool() -> None:
 
 
 def test_convert_pdf_dispatches_to_glm(tmp_path: Path) -> None:
-    """convert_pdf routes to GLM-OCR when config.converter == 'glm-ocr'."""
+    """convert_pdf calls GLM-OCR."""
     from hydrofound.config import HydroFoundConfig
 
-    config = HydroFoundConfig(base_path=tmp_path, converter="glm-ocr")
+    config = HydroFoundConfig(base_path=tmp_path)
 
     with patch(
-        "hydrofound.ingestion.paper._convert_pdf_glm",
+        "hydrofound.ingestion.glm_ocr.convert_pdf_glm",
         return_value="# GLM output",
     ) as mock_glm:
         from hydrofound.ingestion.paper import convert_pdf
@@ -47,24 +46,6 @@ def test_convert_pdf_dispatches_to_glm(tmp_path: Path) -> None:
 
     mock_glm.assert_called_once()
     assert result == "# GLM output"
-
-
-def test_convert_pdf_dispatches_to_marker(tmp_path: Path) -> None:
-    """convert_pdf routes to Marker when config.converter == 'marker'."""
-    from hydrofound.config import HydroFoundConfig
-
-    config = HydroFoundConfig(base_path=tmp_path, converter="marker")
-
-    with patch(
-        "hydrofound.ingestion.paper._convert_pdf_marker",
-        return_value="# Marker output",
-    ) as mock_marker:
-        from hydrofound.ingestion.paper import convert_pdf
-
-        result = convert_pdf(tmp_path / "test.pdf", config)
-
-    mock_marker.assert_called_once()
-    assert result == "# Marker output"
 
 
 # ---------------------------------------------------------------------------
@@ -147,7 +128,7 @@ def test_cli_paper_ingest_uses_glm_by_default(tmp_path: Path) -> None:
     )
 
     with patch(
-        "hydrofound.ingestion.paper._convert_pdf_glm",
+        "hydrofound.ingestion.glm_ocr.convert_pdf_glm",
         return_value=markdown_output,
     ):
         result = runner.invoke(
@@ -159,51 +140,15 @@ def test_cli_paper_ingest_uses_glm_by_default(tmp_path: Path) -> None:
     assert "research paper" in result.output.lower()
 
 
-def test_cli_paper_ingest_falls_back_to_marker(tmp_path: Path) -> None:
-    """When config has converter=marker, the marker path is used."""
-    kb = _init_kb(tmp_path)
-    pdf = _make_fake_pdf(tmp_path / "paper.pdf")
-
-    # Write config with marker converter
-    config_path = kb / ".hydrofound" / "config.toml"
-    config_text = config_path.read_text()
-    config_path.write_text(
-        config_text.replace('converter = "glm-ocr"', 'converter = "marker"')
-    )
-
-    original_run = subprocess.run
-
-    def fake_marker(cmd, **kwargs):
-        if cmd[0] == "marker":
-            input_path = Path(cmd[1])
-            output_dir = input_path.parent / input_path.stem
-            output_dir.mkdir(exist_ok=True)
-            (output_dir / f"{input_path.stem}.md").write_text(
-                "# Marker Output\n\nContent (2024).\n"
-            )
-            return subprocess.CompletedProcess(cmd, 0, "", "")
-        return original_run(cmd, **kwargs)
-
-    with patch("subprocess.run", side_effect=fake_marker):
-        result = runner.invoke(
-            app,
-            ["--kb", str(kb), "ingest", "paper", str(pdf), "--topic", "test"],
-        )
-
-    assert result.exit_code == 0, result.output
-    assert "marker" in result.output.lower()
-
-
 # ---------------------------------------------------------------------------
 # Config fields
 # ---------------------------------------------------------------------------
 
 
-def test_config_has_converter_fields() -> None:
-    """HydroFoundConfig has the new converter fields with correct defaults."""
+def test_config_has_ocr_fields() -> None:
+    """HydroFoundConfig has OCR fields with correct defaults."""
     from hydrofound.config import HydroFoundConfig
 
     cfg = HydroFoundConfig(base_path=Path("/tmp"))
-    assert cfg.converter == "glm-ocr"
     assert cfg.ocr_model == "zai-org/GLM-OCR"
     assert cfg.ocr_dpi == 150

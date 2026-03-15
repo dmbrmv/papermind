@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
+
 from hydrofound.config import load_config
 
 
@@ -12,9 +13,9 @@ def test_default_config_values(tmp_path: Path) -> None:
     """Config has sensible defaults when no file exists."""
     cfg = load_config(tmp_path)
     assert cfg.base_path == tmp_path
-    assert cfg.marker_path == "marker"
     assert cfg.qmd_path == "qmd"
-    assert cfg.marker_use_llm is False
+    assert cfg.ocr_model == "zai-org/GLM-OCR"
+    assert cfg.ocr_dpi == 150
     assert cfg.offline_only is False
     assert cfg.default_paper_topic == "uncategorized"
 
@@ -35,10 +36,10 @@ def test_config_from_toml(tmp_path: Path) -> None:
     config_dir = tmp_path / ".hydrofound"
     config_dir.mkdir()
     (config_dir / "config.toml").write_text(
-        '[ingestion]\nmarker_path = "/usr/local/bin/marker"\ndefault_paper_topic = "hydrology"\n'
+        '[ingestion]\nocr_dpi = 300\ndefault_paper_topic = "hydrology"\n'
     )
     cfg = load_config(tmp_path)
-    assert cfg.marker_path == "/usr/local/bin/marker"
+    assert cfg.ocr_dpi == 300
     assert cfg.default_paper_topic == "hydrology"
 
 

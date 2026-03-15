@@ -161,8 +161,8 @@ def ingest_paper_cmd(
             config,
             no_reindex=no_reindex,
         )
-    except FileNotFoundError as exc:
-        console.print(f"[red]Marker not installed:[/red] {exc}")
+    except ImportError as exc:
+        console.print(f"[red]OCR not installed:[/red] {exc}")
         raise typer.Exit(code=1) from exc
     except (RuntimeError, ValidationError) as exc:
         console.print(f"[red]Ingestion failed:[/red] {exc}")

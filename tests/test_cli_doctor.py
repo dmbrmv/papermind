@@ -34,7 +34,7 @@ def test_doctor_found_deps_show_checkmark() -> None:
         result = runner.invoke(app, ["doctor"])
     assert result.exit_code == 0
     # All four named deps should show ✓
-    for name in ("griffe", "marker", "qmd", "node"):
+    for name in ("griffe", "qmd", "node"):
         assert name in result.output
     assert "✓" in result.output
 

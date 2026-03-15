@@ -1,12 +1,10 @@
-"""Tests for paper ingestion — Marker subprocess wrapper."""
+"""Tests for paper ingestion — GLM-OCR conversion + metadata + catalog."""
 
 from __future__ import annotations
 
 import json
 from pathlib import Path
-from unittest.mock import MagicMock, patch
-
-import pytest
+from unittest.mock import patch
 
 from hydrofound.catalog.index import CatalogIndex
 from hydrofound.config import HydroFoundConfig
@@ -25,10 +23,8 @@ def _make_pdf(path: Path) -> Path:
     return path
 
 
-def _make_config(tmp_path: Path, *, marker_path: str = "marker") -> HydroFoundConfig:
-    return HydroFoundConfig(
-        base_path=tmp_path, converter="marker", marker_path=marker_path
-    )
+def _make_config(tmp_path: Path) -> HydroFoundConfig:
+    return HydroFoundConfig(base_path=tmp_path)
 
 
 def _make_kb(tmp_path: Path) -> Path:
@@ -40,220 +36,44 @@ def _make_kb(tmp_path: Path) -> Path:
     return kb
 
 
-def _marker_subprocess_result(stdout: str = "", returncode: int = 0) -> MagicMock:
-    result = MagicMock()
-    result.returncode = returncode
-    result.stdout = stdout
-    result.stderr = ""
-    return result
+def _mock_convert(md_content: str = "# Title\n"):
+    """Return a patch context manager that mocks convert_pdf_glm."""
+    return patch(
+        "hydrofound.ingestion.glm_ocr.convert_pdf_glm",
+        return_value=md_content,
+    )
 
 
 # ---------------------------------------------------------------------------
-# convert_pdf — command construction
+# convert_pdf — routes to GLM-OCR
 # ---------------------------------------------------------------------------
 
 
-class TestConvertPdfCommandConstruction:
-    """Verify the exact subprocess command passed to Marker."""
+class TestConvertPdfDispatch:
+    """Verify convert_pdf delegates to GLM-OCR."""
 
-    def test_command_is_list_not_shell(self, tmp_path: Path) -> None:
-        """subprocess.run must receive a list, never shell=True."""
+    def test_calls_glm_ocr(self, tmp_path: Path) -> None:
         pdf = _make_pdf(tmp_path / "paper.pdf")
         cfg = _make_config(tmp_path)
 
-        # Simulate Marker writing its output directory.
-        out_dir = tmp_path / "paper"
-        out_dir.mkdir()
-        (out_dir / "paper.md").write_text("# Title\n")
+        with _mock_convert("# Output\n") as mock_glm:
+            result = convert_pdf(pdf, cfg)
 
-        with patch("subprocess.run") as mock_run:
-            mock_run.return_value = _marker_subprocess_result()
+        mock_glm.assert_called_once()
+        assert result == "# Output\n"
+
+    def test_passes_model_and_dpi_from_config(self, tmp_path: Path) -> None:
+        pdf = _make_pdf(tmp_path / "paper.pdf")
+        cfg = _make_config(tmp_path)
+        cfg.ocr_model = "custom/model"
+        cfg.ocr_dpi = 200
+
+        with _mock_convert("# X\n") as mock_glm:
             convert_pdf(pdf, cfg)
 
-            call_args, call_kwargs = mock_run.call_args
-            cmd = call_args[0]
-            assert isinstance(cmd, list), "cmd must be a list (never shell=True)"
-            assert "shell" not in call_kwargs or call_kwargs.get("shell") is not True
-
-    def test_command_structure(self, tmp_path: Path) -> None:
-        """Command must be ['marker', str(path), '--output_format', 'markdown']."""
-        pdf = _make_pdf(tmp_path / "paper.pdf")
-        cfg = _make_config(tmp_path)
-
-        out_dir = tmp_path / "paper"
-        out_dir.mkdir()
-        (out_dir / "paper.md").write_text("# Title\n")
-
-        with patch("subprocess.run") as mock_run:
-            mock_run.return_value = _marker_subprocess_result()
-            convert_pdf(pdf, cfg)
-
-            cmd = mock_run.call_args[0][0]
-            assert cmd[0] == "marker"
-            assert cmd[1] == str(pdf)
-            assert "--output_format" in cmd
-            idx = cmd.index("--output_format")
-            assert cmd[idx + 1] == "markdown"
-
-    def test_custom_marker_path(self, tmp_path: Path) -> None:
-        """marker_path from config is used as the first argument."""
-        pdf = _make_pdf(tmp_path / "paper.pdf")
-        cfg = _make_config(tmp_path, marker_path="/opt/marker/bin/marker")
-
-        out_dir = tmp_path / "paper"
-        out_dir.mkdir()
-        (out_dir / "paper.md").write_text("# Title\n")
-
-        with patch("subprocess.run") as mock_run:
-            mock_run.return_value = _marker_subprocess_result()
-            convert_pdf(pdf, cfg)
-
-            cmd = mock_run.call_args[0][0]
-            assert cmd[0] == "/opt/marker/bin/marker"
-
-    def test_use_llm_flag_added_when_enabled(self, tmp_path: Path) -> None:
-        """--use_llm flag is appended when marker_use_llm=True."""
-        pdf = _make_pdf(tmp_path / "paper.pdf")
-        cfg = _make_config(tmp_path)
-        cfg.marker_use_llm = True
-
-        out_dir = tmp_path / "paper"
-        out_dir.mkdir()
-        (out_dir / "paper.md").write_text("# Title\n")
-
-        with patch("subprocess.run") as mock_run:
-            mock_run.return_value = _marker_subprocess_result()
-            convert_pdf(pdf, cfg)
-
-            cmd = mock_run.call_args[0][0]
-            assert "--use_llm" in cmd
-
-    def test_use_llm_flag_absent_when_disabled(self, tmp_path: Path) -> None:
-        """--use_llm is NOT added when marker_use_llm=False (default)."""
-        pdf = _make_pdf(tmp_path / "paper.pdf")
-        cfg = _make_config(tmp_path)
-        cfg.marker_use_llm = False
-
-        out_dir = tmp_path / "paper"
-        out_dir.mkdir()
-        (out_dir / "paper.md").write_text("# Title\n")
-
-        with patch("subprocess.run") as mock_run:
-            mock_run.return_value = _marker_subprocess_result()
-            convert_pdf(pdf, cfg)
-
-            cmd = mock_run.call_args[0][0]
-            assert "--use_llm" not in cmd
-
-
-# ---------------------------------------------------------------------------
-# convert_pdf — output resolution
-# ---------------------------------------------------------------------------
-
-
-class TestConvertPdfOutputResolution:
-    """Verify the output file discovery logic."""
-
-    def test_reads_md_from_output_directory(self, tmp_path: Path) -> None:
-        """Marker's primary output: <stem>/<stem>.md directory layout."""
-        pdf = _make_pdf(tmp_path / "greenampt.pdf")
-        cfg = _make_config(tmp_path)
-
-        out_dir = tmp_path / "greenampt"
-        out_dir.mkdir()
-        expected = "# Green and Ampt Model\n\nContent here."
-        (out_dir / "greenampt.md").write_text(expected)
-
-        with patch("subprocess.run") as mock_run:
-            mock_run.return_value = _marker_subprocess_result()
-            md = convert_pdf(pdf, cfg)
-
-        assert md == expected
-
-    def test_falls_back_to_sibling_md_file(self, tmp_path: Path) -> None:
-        """Falls back to <input>.md beside the PDF when no output dir exists."""
-        pdf = _make_pdf(tmp_path / "paper.pdf")
-        cfg = _make_config(tmp_path)
-
-        sibling = tmp_path / "paper.md"
-        sibling.write_text("# Sibling Output\n")
-
-        with patch("subprocess.run") as mock_run:
-            mock_run.return_value = _marker_subprocess_result()
-            md = convert_pdf(pdf, cfg)
-
-        assert "Sibling Output" in md
-
-    def test_falls_back_to_stdout(self, tmp_path: Path) -> None:
-        """Falls back to stdout when no files are written."""
-        pdf = _make_pdf(tmp_path / "paper.pdf")
-        cfg = _make_config(tmp_path)
-
-        with patch("subprocess.run") as mock_run:
-            mock_run.return_value = _marker_subprocess_result(
-                stdout="# Stdout Title\nBody text.\n"
-            )
-            md = convert_pdf(pdf, cfg)
-
-        assert "Stdout Title" in md
-
-    def test_raises_runtime_error_when_no_output(self, tmp_path: Path) -> None:
-        """RuntimeError when Marker produces neither files nor stdout."""
-        pdf = _make_pdf(tmp_path / "paper.pdf")
-        cfg = _make_config(tmp_path)
-
-        with patch("subprocess.run") as mock_run:
-            mock_run.return_value = _marker_subprocess_result(stdout="")
-            with pytest.raises(RuntimeError, match="no output"):
-                convert_pdf(pdf, cfg)
-
-
-# ---------------------------------------------------------------------------
-# convert_pdf — error handling
-# ---------------------------------------------------------------------------
-
-
-class TestConvertPdfErrors:
-    """Error paths: Marker not installed, non-zero exit."""
-
-    def test_raises_file_not_found_when_marker_missing(self, tmp_path: Path) -> None:
-        """FileNotFoundError when the Marker binary does not exist."""
-        pdf = _make_pdf(tmp_path / "paper.pdf")
-        cfg = _make_config(tmp_path)
-
-        with patch(
-            "subprocess.run", side_effect=FileNotFoundError("marker: not found")
-        ):
-            with pytest.raises(FileNotFoundError, match="Marker not found"):
-                convert_pdf(pdf, cfg)
-
-    def test_raises_runtime_error_on_nonzero_return(self, tmp_path: Path) -> None:
-        """RuntimeError when Marker exits with non-zero return code."""
-        pdf = _make_pdf(tmp_path / "paper.pdf")
-        cfg = _make_config(tmp_path)
-
-        bad_result = MagicMock()
-        bad_result.returncode = 1
-        bad_result.stdout = ""
-        bad_result.stderr = "Error: unsupported PDF format"
-
-        with patch("subprocess.run", return_value=bad_result):
-            with pytest.raises(RuntimeError, match="Marker failed"):
-                convert_pdf(pdf, cfg)
-
-    def test_error_message_contains_stderr(self, tmp_path: Path) -> None:
-        """RuntimeError message includes Marker's stderr output."""
-        pdf = _make_pdf(tmp_path / "paper.pdf")
-        cfg = _make_config(tmp_path)
-
-        bad_result = MagicMock()
-        bad_result.returncode = 2
-        bad_result.stdout = ""
-        bad_result.stderr = "segmentation fault in layout model"
-
-        with patch("subprocess.run", return_value=bad_result):
-            with pytest.raises(RuntimeError, match="segmentation fault"):
-                convert_pdf(pdf, cfg)
+        _, kwargs = mock_glm.call_args
+        assert kwargs["model_name"] == "custom/model"
+        assert kwargs["dpi"] == 200
 
 
 # ---------------------------------------------------------------------------
@@ -272,7 +92,6 @@ class TestExtractMetadata:
     def test_ignores_h2_for_title(self) -> None:
         md = "## Not a title\n\n# Real Title\n"
         meta = extract_metadata(md)
-        # First # heading (regardless of position) should be picked up
         assert meta["title"] == "Real Title"
 
     def test_no_title_when_no_h1(self) -> None:
@@ -341,12 +160,7 @@ class TestIngestPaperFrontmatter:
         pdf = _make_pdf(tmp_path / "paper.pdf")
         cfg = _make_config(tmp_path)
 
-        md_content = "# My Paper (2020)\n\nDOI: 10.9999/test.2020.\n"
-        out_dir = tmp_path / "paper"
-        out_dir.mkdir()
-        (out_dir / "paper.md").write_text(md_content)
-
-        with patch("subprocess.run", return_value=_marker_subprocess_result()):
+        with _mock_convert("# My Paper (2020)\n\nDOI: 10.9999/test.2020.\n"):
             entry = ingest_paper(pdf, "hydrology", kb, cfg, no_reindex=True)
 
         assert entry is not None
@@ -361,12 +175,7 @@ class TestIngestPaperFrontmatter:
         pdf = _make_pdf(tmp_path / "paper.pdf")
         cfg = _make_config(tmp_path)
 
-        md_content = "# Green Ampt Paper (1911)\n\nDOI: 10.1234/ga1911.\n"
-        out_dir = tmp_path / "paper"
-        out_dir.mkdir()
-        (out_dir / "paper.md").write_text(md_content)
-
-        with patch("subprocess.run", return_value=_marker_subprocess_result()):
+        with _mock_convert("# Green Ampt Paper (1911)\n\nDOI: 10.1234/ga1911.\n"):
             ingest_paper(pdf, "infiltration", kb, cfg, no_reindex=True)
 
         written = list((kb / "papers" / "infiltration").glob("*.md"))[0]
@@ -382,11 +191,7 @@ class TestIngestPaperFrontmatter:
         pdf = _make_pdf(tmp_path / "paper.pdf")
         cfg = _make_config(tmp_path)
 
-        out_dir = tmp_path / "paper"
-        out_dir.mkdir()
-        (out_dir / "paper.md").write_text("# Title\n")
-
-        with patch("subprocess.run", return_value=_marker_subprocess_result()):
+        with _mock_convert("# Title\n"):
             ingest_paper(pdf, "general", kb, cfg, no_reindex=True)
 
         written = list((kb / "papers" / "general").glob("*.md"))[0]
@@ -394,23 +199,17 @@ class TestIngestPaperFrontmatter:
         assert "added" in post.metadata
 
     def test_frontmatter_no_doi_field_when_absent(self, tmp_path: Path) -> None:
-        """doi key should be omitted (or empty) when not found in markdown."""
         import frontmatter as fm_lib
 
         kb = _make_kb(tmp_path)
         pdf = _make_pdf(tmp_path / "paper.pdf")
         cfg = _make_config(tmp_path)
 
-        out_dir = tmp_path / "paper"
-        out_dir.mkdir()
-        (out_dir / "paper.md").write_text("# A Paper Without DOI\n")
-
-        with patch("subprocess.run", return_value=_marker_subprocess_result()):
+        with _mock_convert("# A Paper Without DOI\n"):
             ingest_paper(pdf, "general", kb, cfg, no_reindex=True)
 
         written = list((kb / "papers" / "general").glob("*.md"))[0]
         post = fm_lib.load(written)
-        # doi should be absent or empty string — not a garbage value
         doi_val = post.metadata.get("doi", "")
         assert doi_val == ""
 
@@ -428,7 +227,6 @@ class TestIngestPaperDuplicateDoi:
         pdf = _make_pdf(tmp_path / "paper.pdf")
         cfg = _make_config(tmp_path)
 
-        # Pre-populate catalog with a known DOI.
         from hydrofound.catalog.index import CatalogEntry
 
         catalog = CatalogIndex(kb)
@@ -441,13 +239,7 @@ class TestIngestPaperDuplicateDoi:
             )
         )
 
-        out_dir = tmp_path / "paper"
-        out_dir.mkdir()
-        (out_dir / "paper.md").write_text(
-            "# Duplicate (2020)\n\nDOI: 10.9999/duplicate.\n"
-        )
-
-        with patch("subprocess.run", return_value=_marker_subprocess_result()):
+        with _mock_convert("# Duplicate (2020)\n\nDOI: 10.9999/duplicate.\n"):
             result = ingest_paper(pdf, "hydrology", kb, cfg, no_reindex=True)
 
         assert result is None
@@ -469,22 +261,14 @@ class TestIngestPaperDuplicateDoi:
             )
         )
 
-        out_dir = tmp_path / "paper"
-        out_dir.mkdir()
-        (out_dir / "paper.md").write_text(
-            "# Duplicate (2020)\n\nDOI: 10.9999/duplicate.\n"
-        )
-
-        with patch("subprocess.run", return_value=_marker_subprocess_result()):
+        with _mock_convert("# Duplicate (2020)\n\nDOI: 10.9999/duplicate.\n"):
             ingest_paper(pdf, "hydrology", kb, cfg, no_reindex=True)
 
-        # No new file should have been written for this topic
         topic_dir = kb / "papers" / "hydrology"
         written_files = list(topic_dir.glob("*.md")) if topic_dir.exists() else []
         assert len(written_files) == 0
 
     def test_unique_doi_is_ingested(self, tmp_path: Path) -> None:
-        """A paper with a different DOI is ingested normally."""
         kb = _make_kb(tmp_path)
         pdf = _make_pdf(tmp_path / "paper.pdf")
         cfg = _make_config(tmp_path)
@@ -501,13 +285,7 @@ class TestIngestPaperDuplicateDoi:
             )
         )
 
-        out_dir = tmp_path / "paper"
-        out_dir.mkdir()
-        (out_dir / "paper.md").write_text(
-            "# New Paper (2021)\n\nDOI: 10.9999/new-unique.\n"
-        )
-
-        with patch("subprocess.run", return_value=_marker_subprocess_result()):
+        with _mock_convert("# New Paper (2021)\n\nDOI: 10.9999/new-unique.\n"):
             entry = ingest_paper(pdf, "hydrology", kb, cfg, no_reindex=True)
 
         assert entry is not None
@@ -527,11 +305,7 @@ class TestIngestPaperCatalogUpdates:
         pdf = _make_pdf(tmp_path / "paper.pdf")
         cfg = _make_config(tmp_path)
 
-        out_dir = tmp_path / "paper"
-        out_dir.mkdir()
-        (out_dir / "paper.md").write_text("# New Paper (2022)\n\nDOI: 10.1/new.\n")
-
-        with patch("subprocess.run", return_value=_marker_subprocess_result()):
+        with _mock_convert("# New Paper (2022)\n\nDOI: 10.1/new.\n"):
             ingest_paper(pdf, "general", kb, cfg, no_reindex=True)
 
         catalog = json.loads((kb / "catalog.json").read_text())
@@ -540,15 +314,11 @@ class TestIngestPaperCatalogUpdates:
 
     def test_catalog_md_updated(self, tmp_path: Path) -> None:
         kb = _make_kb(tmp_path)
-        (kb / "catalog.md").write_text("")  # start empty
+        (kb / "catalog.md").write_text("")
         pdf = _make_pdf(tmp_path / "paper.pdf")
         cfg = _make_config(tmp_path)
 
-        out_dir = tmp_path / "paper"
-        out_dir.mkdir()
-        (out_dir / "paper.md").write_text("# Hydrology Paper (2019)\n\n")
-
-        with patch("subprocess.run", return_value=_marker_subprocess_result()):
+        with _mock_convert("# Hydrology Paper (2019)\n\n"):
             ingest_paper(pdf, "hydrology", kb, cfg, no_reindex=True)
 
         catalog_md = (kb / "catalog.md").read_text()
@@ -559,13 +329,7 @@ class TestIngestPaperCatalogUpdates:
         pdf = _make_pdf(tmp_path / "paper.pdf")
         cfg = _make_config(tmp_path)
 
-        out_dir = tmp_path / "paper"
-        out_dir.mkdir()
-        (out_dir / "paper.md").write_text(
-            "# SWAT+ Model (2021)\n\nDOI: 10.5555/swat2021.\n"
-        )
-
-        with patch("subprocess.run", return_value=_marker_subprocess_result()):
+        with _mock_convert("# SWAT+ Model (2021)\n\nDOI: 10.5555/swat2021.\n"):
             entry = ingest_paper(pdf, "swat", kb, cfg, no_reindex=True)
 
         assert entry is not None
@@ -579,13 +343,9 @@ class TestIngestPaperCatalogUpdates:
         pdf = _make_pdf(tmp_path / "paper.pdf")
         cfg = _make_config(tmp_path)
 
-        out_dir = tmp_path / "paper"
-        out_dir.mkdir()
-        (out_dir / "paper.md").write_text("# Test\n")
-
         assert not (kb / "papers" / "newtopic").exists()
 
-        with patch("subprocess.run", return_value=_marker_subprocess_result()):
+        with _mock_convert("# Test\n"):
             ingest_paper(pdf, "newtopic", kb, cfg, no_reindex=True)
 
         assert (kb / "papers" / "newtopic").is_dir()
@@ -604,40 +364,29 @@ class TestNoReindexFlag:
         pdf = _make_pdf(tmp_path / "paper.pdf")
         cfg = _make_config(tmp_path)
 
-        out_dir = tmp_path / "paper"
-        out_dir.mkdir()
-        (out_dir / "paper.md").write_text("# Title\n")
-
-        with patch(
-            "subprocess.run", return_value=_marker_subprocess_result()
-        ) as mock_run:
+        with (
+            _mock_convert("# Title\n"),
+            patch("subprocess.run") as mock_run,
+        ):
             ingest_paper(pdf, "general", kb, cfg, no_reindex=True)
 
-        # Only one subprocess.run call: Marker. No qmd call.
-        assert mock_run.call_count == 1
-        cmd = mock_run.call_args[0][0]
-        assert cmd[0] == "marker"
+        # No subprocess.run calls at all (qmd not called)
+        mock_run.assert_not_called()
 
     def test_reindex_attempted_when_flag_false(self, tmp_path: Path) -> None:
-        """With no_reindex=False and qmd on PATH, a second subprocess.run is issued."""
         kb = _make_kb(tmp_path)
         pdf = _make_pdf(tmp_path / "paper.pdf")
         cfg = _make_config(tmp_path)
 
-        out_dir = tmp_path / "paper"
-        out_dir.mkdir()
-        (out_dir / "paper.md").write_text("# Title\n")
-
         with (
-            patch(
-                "subprocess.run", return_value=_marker_subprocess_result()
-            ) as mock_run,
+            _mock_convert("# Title\n"),
+            patch("subprocess.run") as mock_run,
             patch("shutil.which", return_value="/usr/bin/qmd"),
         ):
             ingest_paper(pdf, "general", kb, cfg, no_reindex=False)
 
-        # Two calls: marker + qmd reindex
-        assert mock_run.call_count == 2
-        qmd_cmd = mock_run.call_args_list[1][0][0]
+        # One call: qmd reindex
+        assert mock_run.call_count == 1
+        qmd_cmd = mock_run.call_args[0][0]
         assert "qmd" in qmd_cmd[0]
         assert "reindex" in qmd_cmd
