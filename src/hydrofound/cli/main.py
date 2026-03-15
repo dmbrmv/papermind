@@ -143,6 +143,7 @@ def fetch_command(
         )
         raise typer.Exit(code=1)
 
+    from hydrofound.cli.discover import _build_providers
     from hydrofound.config import load_config
     from hydrofound.discovery.orchestrator import discover_papers
 
@@ -150,7 +151,12 @@ def fetch_command(
 
     # Step 1: Discover
     console.print(f"Searching for: [bold]{query}[/bold] (limit={limit})")
-    results = asyncio.run(discover_papers(query, config, source=source, limit=limit))
+    providers = _build_providers(source, config)
+    if not providers:
+        console.print("[red]No providers available.[/red] Set API keys first.")
+        raise typer.Exit(code=1)
+
+    results = asyncio.run(discover_papers(query, providers, limit=limit))
 
     if not results:
         console.print("[yellow]No results found.[/yellow]")
@@ -171,7 +177,7 @@ def fetch_command(
             continue
 
         try:
-            pdf_path = asyncio.run(download_paper(r.pdf_url, pdf_dir))
+            pdf_path = asyncio.run(download_paper(r, pdf_dir))
             if pdf_path:
                 console.print(f"  [green]OK[/green]   {r.title[:60]}")
                 downloaded.append((pdf_path, r))
