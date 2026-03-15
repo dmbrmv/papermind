@@ -173,6 +173,13 @@ def ingest_paper(
     post.metadata = fm
     md_path.write_text(frontmatter.dumps(post))
 
+    # Copy source PDF alongside the markdown for easy comparison
+    import shutil
+
+    pdf_copy = topic_dir / f"{slug}.pdf"
+    if not pdf_copy.exists():
+        shutil.copy2(pdf_path, pdf_copy)
+
     entry = CatalogEntry(
         id=entry_id,
         type="paper",
