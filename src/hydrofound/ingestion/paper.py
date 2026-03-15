@@ -65,6 +65,24 @@ def extract_metadata(markdown: str) -> dict:
     title_match = re.search(r"^#\s+(.+)$", markdown, re.MULTILINE)
     if title_match:
         metadata["title"] = title_match.group(1).strip()
+    else:
+        # GLM-OCR often outputs the title as plain text (no # heading).
+        # Use the first non-empty line that looks like a title (>10 chars,
+        # starts with uppercase, doesn't look like metadata).
+        for line in markdown.split("\n"):
+            line = line.strip()
+            if (
+                len(line) > 10
+                and not line.startswith("#")
+                and not line.startswith("10.")
+                and not line.startswith("http")
+                and not line.startswith("---")
+                and not re.match(r"^\d{4}", line)
+                and not re.match(r"^[a-z]", line)
+                and re.match(r"^[A-Z]", line)
+            ):
+                metadata["title"] = line[:200]
+                break
 
     doi_match = re.search(r"(10\.\d{4,9}/[^\s]+)", markdown)
     if doi_match:

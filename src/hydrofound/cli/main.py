@@ -107,6 +107,109 @@ def serve_command(
     asyncio.run(run())
 
 
+@app.command(name="fetch")
+def fetch_command(
+    ctx: typer.Context,
+    query: str = typer.Argument(..., help="Search query for papers"),
+    limit: int = typer.Option(5, "--limit", "-n", help="Number of papers to find"),
+    topic: str = typer.Option(
+        "uncategorized", "--topic", "-t", help="Topic for ingested papers"
+    ),
+    source: str = typer.Option(
+        "all", "--source", "-s", help="Search source: all, semantic_scholar, exa"
+    ),
+    no_ingest: bool = typer.Option(
+        False, "--no-ingest", help="Download only, don't ingest"
+    ),
+) -> None:
+    """Search, download, and ingest papers in one step.
+
+    Combines discover → download → ingest into a single command.
+    Only open-access papers with PDF URLs are downloaded.
+    """
+    import asyncio
+
+    kb_path = ctx.obj.get("kb") if ctx.obj else None
+    offline = ctx.obj.get("offline", False)
+
+    if not kb_path or not (kb_path / ".hydrofound").exists():
+        console.print(
+            "[red]Error:[/red] --kb required and must point to initialized KB"
+        )
+        raise typer.Exit(code=1)
+    if offline:
+        console.print(
+            "[red]Error:[/red] fetch requires network access (--offline is set)"
+        )
+        raise typer.Exit(code=1)
+
+    from hydrofound.config import load_config
+    from hydrofound.discovery.orchestrator import discover_papers
+
+    config = load_config(kb_path)
+
+    # Step 1: Discover
+    console.print(f"Searching for: [bold]{query}[/bold] (limit={limit})")
+    results = asyncio.run(discover_papers(query, config, source=source, limit=limit))
+
+    if not results:
+        console.print("[yellow]No results found.[/yellow]")
+        raise typer.Exit(code=0)
+
+    console.print(f"Found {len(results)} result(s)")
+
+    # Step 2: Download papers with PDF URLs
+    from hydrofound.discovery.downloader import download_paper
+
+    pdf_dir = kb_path / "pdfs"
+    pdf_dir.mkdir(exist_ok=True)
+    downloaded = []
+
+    for r in results:
+        if not r.pdf_url:
+            console.print(f"  [dim]SKIP[/dim] {r.title[:60]} — no PDF URL")
+            continue
+
+        try:
+            pdf_path = asyncio.run(download_paper(r.pdf_url, pdf_dir))
+            if pdf_path:
+                console.print(f"  [green]OK[/green]   {r.title[:60]}")
+                downloaded.append((pdf_path, r))
+            else:
+                console.print(
+                    f"  [yellow]FAIL[/yellow] {r.title[:60]} — not a valid PDF"
+                )
+        except Exception as exc:
+            console.print(f"  [yellow]FAIL[/yellow] {r.title[:60]} — {exc}")
+
+    if not downloaded:
+        console.print("[yellow]No papers downloaded.[/yellow]")
+        raise typer.Exit(code=0)
+
+    console.print(f"\nDownloaded {len(downloaded)} paper(s)")
+
+    if no_ingest:
+        console.print("Skipping ingestion (--no-ingest)")
+        raise typer.Exit(code=0)
+
+    # Step 3: Ingest
+    from hydrofound.ingestion.paper import ingest_paper
+
+    ingested = 0
+    for pdf_path, paper_result in downloaded:
+        try:
+            entry = ingest_paper(pdf_path, topic, kb_path, config, no_reindex=True)
+            if entry:
+                console.print(f"  [green]Ingested[/green] {entry.title[:60]}")
+                ingested += 1
+            else:
+                console.print("  [dim]Skipped[/dim] (duplicate DOI)")
+        except Exception as exc:
+            console.print(f"  [red]Failed[/red] {pdf_path.name}: {exc}")
+
+    console.print(f"\n[bold]{ingested} paper(s) ingested into topic '{topic}'[/bold]")
+
+
 @app.command()
 def version() -> None:
     """Print version."""

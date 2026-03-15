@@ -10,6 +10,7 @@ Requires: ``pip install hydrofound[ocr]`` (transformers, torch, pymupdf).
 from __future__ import annotations
 
 import logging
+import re
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
@@ -102,7 +103,7 @@ def _ocr_image(image, processor, model) -> str:
             "role": "user",
             "content": [
                 {"type": "image", "image": image},
-                {"type": "text", "text": "OCR with format:"},
+                {"type": "text", "text": "Text Recognition:"},
             ],
         }
     ]
@@ -172,6 +173,63 @@ def extract_images(pdf_path: Path, output_dir: Path) -> list[str]:
     return saved
 
 
+def _add_markdown_headings(text: str) -> str:
+    """Post-process OCR output to add markdown headings.
+
+    Detects likely section headings (numbered sections like "1 Introduction",
+    "2.1 Methods", or short ALL-CAPS lines like "ABSTRACT") and adds
+    appropriate ``#`` markers.
+
+    Args:
+        text: Raw OCR markdown text.
+
+    Returns:
+        Text with ``#`` headings added where detected.
+    """
+    lines = text.split("\n")
+    result = []
+
+    for line in lines:
+        stripped = line.strip()
+        if not stripped:
+            result.append(line)
+            continue
+
+        # Already a heading
+        if stripped.startswith("#"):
+            result.append(line)
+            continue
+
+        # Numbered section: "1 Introduction", "2.1 Study area", "A.1 Appendix"
+        if (
+            re.match(
+                r"^[A-Z]?\d+\.?\d*\s+[A-Z][A-Za-z]",
+                stripped,
+            )
+            and len(stripped) < 100
+        ):
+            # Top-level (1, 2, 3) → ##, sub-section (2.1) → ###
+            if re.match(r"^\d+\s", stripped):
+                result.append(f"## {stripped}")
+            else:
+                result.append(f"### {stripped}")
+            continue
+
+        # ALL-CAPS short lines: ABSTRACT, INTRODUCTION, REFERENCES, etc.
+        if (
+            stripped.isupper()
+            and len(stripped) > 3
+            and len(stripped) < 60
+            and stripped.replace(" ", "").isalpha()
+        ):
+            result.append(f"## {stripped.title()}")
+            continue
+
+        result.append(line)
+
+    return "\n".join(result)
+
+
 def convert_pdf_glm(
     path: Path,
     model_name: str = "zai-org/GLM-OCR",
@@ -215,6 +273,7 @@ def convert_pdf_glm(
         pages_md.append(page_text)
 
     markdown = "\n\n---\n\n".join(pages_md)
+    markdown = _add_markdown_headings(markdown)
 
     # Extract embedded images if requested
     if image_dir is not None:

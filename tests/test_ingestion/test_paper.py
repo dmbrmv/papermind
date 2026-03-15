@@ -94,10 +94,12 @@ class TestExtractMetadata:
         meta = extract_metadata(md)
         assert meta["title"] == "Real Title"
 
-    def test_no_title_when_no_h1(self) -> None:
+    def test_fallback_title_when_no_h1(self) -> None:
+        """When no # heading exists, first uppercase line is used as title."""
         md = "## Subtitle Only\n\nNo level-1 heading."
         meta = extract_metadata(md)
-        assert "title" not in meta
+        # Fallback picks first line starting with uppercase, >10 chars
+        assert meta["title"] == "No level-1 heading."
 
     def test_extracts_doi(self) -> None:
         md = "# Paper\n\nhttps://doi.org/10.1002/hyp.14561 is the DOI.\n"
