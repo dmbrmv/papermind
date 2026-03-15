@@ -26,7 +26,9 @@ def _make_pdf(path: Path) -> Path:
 
 
 def _make_config(tmp_path: Path, *, marker_path: str = "marker") -> HydroFoundConfig:
-    return HydroFoundConfig(base_path=tmp_path, marker_path=marker_path)
+    return HydroFoundConfig(
+        base_path=tmp_path, converter="marker", marker_path=marker_path
+    )
 
 
 def _make_kb(tmp_path: Path) -> Path:

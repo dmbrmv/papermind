@@ -1,4 +1,4 @@
-"""Paper ingestion — PDF → markdown via Marker subprocess."""
+"""Paper ingestion — PDF → markdown via GLM-OCR (default) or Marker (legacy)."""
 
 from __future__ import annotations
 
@@ -17,7 +17,10 @@ logger = logging.getLogger(__name__)
 
 
 def convert_pdf(path: Path, config: HydroFoundConfig) -> str:
-    """Convert PDF to markdown using Marker subprocess.
+    """Convert PDF to markdown using the configured converter.
+
+    Dispatches to GLM-OCR (default) or Marker (legacy) based on
+    ``config.converter``.
 
     Args:
         path: Path to the PDF file.
@@ -27,8 +30,32 @@ def convert_pdf(path: Path, config: HydroFoundConfig) -> str:
         Markdown string.
 
     Raises:
-        FileNotFoundError: If Marker is not installed (command not found).
-        RuntimeError: If Marker returns a non-zero exit code or produces no output.
+        ImportError: If GLM-OCR deps are not installed.
+        FileNotFoundError: If Marker is not installed.
+        RuntimeError: If conversion fails.
+    """
+    if config.converter == "glm-ocr":
+        return _convert_pdf_glm(path, config)
+    return _convert_pdf_marker(path, config)
+
+
+def _convert_pdf_glm(path: Path, config: HydroFoundConfig) -> str:
+    """Convert PDF via GLM-OCR model."""
+    from hydrofound.ingestion.glm_ocr import convert_pdf_glm
+
+    return convert_pdf_glm(
+        path,
+        model_name=config.ocr_model,
+        dpi=config.ocr_dpi,
+    )
+
+
+def _convert_pdf_marker(path: Path, config: HydroFoundConfig) -> str:
+    """Convert PDF via Marker subprocess (legacy).
+
+    Raises:
+        FileNotFoundError: If Marker is not installed.
+        RuntimeError: If Marker fails or produces no output.
     """
     cmd = [config.marker_path, str(path), "--output_format", "markdown"]
     if config.marker_use_llm:

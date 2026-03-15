@@ -22,7 +22,10 @@ semantic_scholar_key = ""
 exa_key = ""
 
 [ingestion]
-marker_path = "marker"
+converter = "glm-ocr"        # "glm-ocr" (default, requires hydrofound[ocr]) or "marker" (legacy)
+ocr_model = "zai-org/GLM-OCR"
+ocr_dpi = 150
+marker_path = "marker"        # only used if converter = "marker"
 marker_use_llm = false
 default_paper_topic = "uncategorized"
 
@@ -93,14 +96,19 @@ def _print_quick_status() -> None:
 
     console.print("[bold]Dependencies:[/bold]")
 
+    from hydrofound.ingestion.glm_ocr import is_available as glm_ocr_ok
+
     checks = [
-        ("griffe", "griffe", "Python API extraction"),
-        ("marker", "marker", "PDF conversion — pip install marker-pdf"),
-        ("qmd", "qmd", "Semantic search — see github.com/tobi/qmd"),
+        ("griffe", shutil.which("griffe") is not None, "Python API extraction"),
+        ("glm-ocr", glm_ocr_ok(), "PDF conversion — pip install 'hydrofound[ocr]'"),
+        (
+            "qmd",
+            shutil.which("qmd") is not None,
+            "Semantic search — see github.com/tobi/qmd",
+        ),
     ]
 
-    for name, cmd, desc in checks:
-        found = shutil.which(cmd) is not None
+    for name, found, desc in checks:
         icon = "[green]✓[/green]" if found else "[yellow]✗[/yellow]"
         console.print(f"  {icon} {name} — {desc}")
 

@@ -24,7 +24,6 @@ def doctor_command(
     console.print("\n[bold]Dependencies:[/bold]")
     deps = [
         ("griffe", "griffe", "Python API extraction"),
-        ("marker", "marker", "PDF conversion — pip install marker-pdf"),
         ("qmd", "qmd", "Semantic search — github.com/tobi/qmd"),
         ("node", "node", "Required by qmd (node >= 22)"),
     ]
@@ -33,6 +32,24 @@ def doctor_command(
         found = shutil.which(cmd) is not None
         icon = "[green]✓[/green]" if found else "[yellow]✗[/yellow]"
         console.print(f"  {icon} {name:12s} — {desc}")
+
+    # Check GLM-OCR (default PDF converter)
+    from hydrofound.ingestion.glm_ocr import is_available as glm_ocr_available
+
+    if glm_ocr_available():
+        console.print(
+            "  [green]✓[/green] glm-ocr      — PDF conversion (transformers + torch + pymupdf)"
+        )
+    else:
+        console.print(
+            "  [yellow]✗[/yellow] glm-ocr      — PDF conversion"
+            " — pip install 'hydrofound[ocr]'"
+        )
+
+    # Check legacy marker
+    marker_found = shutil.which("marker") is not None
+    icon = "[green]✓[/green]" if marker_found else "[dim]·[/dim]"
+    console.print(f"  {icon} marker       — Legacy PDF conversion (optional)")
 
     # Check optional playwright
     try:

@@ -25,6 +25,9 @@ class HydroFoundConfig:
     firecrawl_key: str = ""
 
     # Ingestion
+    converter: str = "glm-ocr"  # "glm-ocr" or "marker"
+    ocr_model: str = "zai-org/GLM-OCR"
+    ocr_dpi: int = 150
     marker_path: str = "marker"
     marker_use_llm: bool = False
     default_paper_topic: str = "uncategorized"
@@ -62,6 +65,9 @@ def load_config(base_path: Path) -> HydroFoundConfig:
         cfg.exa_key = apis.get("exa_key", cfg.exa_key)
 
         ingestion = data.get("ingestion", {})
+        cfg.converter = ingestion.get("converter", cfg.converter)
+        cfg.ocr_model = ingestion.get("ocr_model", cfg.ocr_model)
+        cfg.ocr_dpi = ingestion.get("ocr_dpi", cfg.ocr_dpi)
         cfg.marker_path = ingestion.get("marker_path", cfg.marker_path)
         cfg.marker_use_llm = ingestion.get("marker_use_llm", cfg.marker_use_llm)
         cfg.default_paper_topic = ingestion.get(

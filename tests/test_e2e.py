@@ -197,8 +197,8 @@ def test_package_ingest_and_search(tmp_path: Path) -> None:
 # ===========================================================================
 
 
-def test_paper_ingest_via_subprocess_mock(tmp_path: Path) -> None:
-    """Paper ingestion with subprocess.run mocked to simulate marker output."""
+def test_paper_ingest_via_glm_mock(tmp_path: Path) -> None:
+    """Paper ingestion with GLM-OCR mocked (default converter)."""
     kb = _init_kb(tmp_path)
     pdf = _make_fake_pdf(tmp_path / "test-paper.pdf")
 
@@ -210,22 +210,10 @@ def test_paper_ingest_via_subprocess_mock(tmp_path: Path) -> None:
         "We present a differentiable model for streamflow prediction.\n"
     )
 
-    # Mock subprocess.run to simulate marker creating output
-    import subprocess
-
-    original_run = subprocess.run
-
-    def fake_marker_run(cmd, **kwargs):
-        if cmd[0] == "marker":
-            # Create the output directory and file like marker does
-            input_path = Path(cmd[1])
-            output_dir = input_path.parent / input_path.stem
-            output_dir.mkdir(exist_ok=True)
-            (output_dir / f"{input_path.stem}.md").write_text(markdown_output)
-            return subprocess.CompletedProcess(cmd, 0, "", "")
-        return original_run(cmd, **kwargs)
-
-    with patch("subprocess.run", side_effect=fake_marker_run):
+    with patch(
+        "hydrofound.ingestion.paper._convert_pdf_glm",
+        return_value=markdown_output,
+    ):
         result = runner.invoke(
             app,
             [
@@ -325,25 +313,18 @@ def test_batch_paper_ingest(tmp_path: Path) -> None:
     for i in range(3):
         _make_fake_pdf(pdf_dir / f"paper-{i}.pdf")
 
-    import subprocess
-
-    original_run = subprocess.run
     call_count = {"n": 0}
 
-    def fake_batch_marker(cmd, **kwargs):
-        if cmd[0] == "marker":
-            call_count["n"] += 1
-            input_path = Path(cmd[1])
-            output_dir = input_path.parent / input_path.stem
-            output_dir.mkdir(exist_ok=True)
-            (output_dir / f"{input_path.stem}.md").write_text(
-                f"# Paper {call_count['n']}\n\n"
-                f"Content of paper {call_count['n']} (2024).\n"
-            )
-            return subprocess.CompletedProcess(cmd, 0, "", "")
-        return original_run(cmd, **kwargs)
+    def fake_glm_convert(path, config):
+        call_count["n"] += 1
+        return (
+            f"# Paper {call_count['n']}\n\nContent of paper {call_count['n']} (2024).\n"
+        )
 
-    with patch("subprocess.run", side_effect=fake_batch_marker):
+    with patch(
+        "hydrofound.ingestion.paper._convert_pdf_glm",
+        side_effect=fake_glm_convert,
+    ):
         result = runner.invoke(
             app,
             ["--kb", str(kb), "ingest", "paper", str(pdf_dir), "--topic", "batch-test"],
@@ -368,20 +349,10 @@ def test_duplicate_doi_rejected(tmp_path: Path) -> None:
 
     markdown = "# Same Paper\n\nDOI: 10.1234/test-doi-duplicate\n\nContent (2024).\n"
 
-    import subprocess
-
-    original_run = subprocess.run
-
-    def fake_marker(cmd, **kwargs):
-        if cmd[0] == "marker":
-            input_path = Path(cmd[1])
-            output_dir = input_path.parent / input_path.stem
-            output_dir.mkdir(exist_ok=True)
-            (output_dir / f"{input_path.stem}.md").write_text(markdown)
-            return subprocess.CompletedProcess(cmd, 0, "", "")
-        return original_run(cmd, **kwargs)
-
-    with patch("subprocess.run", side_effect=fake_marker):
+    with patch(
+        "hydrofound.ingestion.paper._convert_pdf_glm",
+        return_value=markdown,
+    ):
         # First ingest
         pdf1 = _make_fake_pdf(tmp_path / "paper1.pdf")
         result = runner.invoke(
