@@ -1,4 +1,4 @@
-"""Tests for the qmd subprocess wrapper."""
+"""Tests for the qmd subprocess wrapper (qmd v2 API)."""
 
 from __future__ import annotations
 
@@ -28,7 +28,7 @@ def test_is_qmd_available_returns_false_when_not_found() -> None:
 
 
 # ---------------------------------------------------------------------------
-# qmd_search — command construction
+# qmd_search — command construction (qmd v2: no --dir flag)
 # ---------------------------------------------------------------------------
 
 
@@ -45,7 +45,7 @@ def _make_completed_process(
 
 
 def test_qmd_search_command_construction(tmp_path: Path) -> None:
-    """qmd search must be invoked with the expected argument list."""
+    """qmd v2 search uses: qmd search <query> --json."""
     kb = tmp_path / "kb"
     kb.mkdir()
 
@@ -57,54 +57,11 @@ def test_qmd_search_command_construction(tmp_path: Path) -> None:
 
     mock_run.assert_called_once()
     cmd = mock_run.call_args[0][0]
-    assert cmd[0] == "qmd"
-    assert cmd[1] == "search"
-    assert "soil moisture" in cmd
-    assert "--dir" in cmd
-    assert str(kb) in cmd
-    assert "--limit" in cmd
-    assert "5" in cmd
-    assert "--json" in cmd
-
-
-def test_qmd_search_command_without_scope_uses_kb_root(tmp_path: Path) -> None:
-    kb = tmp_path / "kb"
-    kb.mkdir()
-
-    with patch(
-        "hydrofound.query.qmd.subprocess.run",
-        return_value=_make_completed_process(stdout="[]"),
-    ) as mock_run:
-        qmd_search(kb, "rainfall", scope="", limit=10)
-
-    cmd = mock_run.call_args[0][0]
-    dir_idx = cmd.index("--dir")
-    assert cmd[dir_idx + 1] == str(kb)
+    assert cmd == ["qmd", "search", "soil moisture", "--json"]
 
 
 # ---------------------------------------------------------------------------
-# qmd_search — scope → directory filter
-# ---------------------------------------------------------------------------
-
-
-def test_qmd_search_scope_translates_to_subdirectory(tmp_path: Path) -> None:
-    """When scope is provided the search dir should be kb_path / scope."""
-    kb = tmp_path / "kb"
-    kb.mkdir()
-
-    with patch(
-        "hydrofound.query.qmd.subprocess.run",
-        return_value=_make_completed_process(stdout="[]"),
-    ) as mock_run:
-        qmd_search(kb, "evapotranspiration", scope="papers", limit=10)
-
-    cmd = mock_run.call_args[0][0]
-    dir_idx = cmd.index("--dir")
-    assert cmd[dir_idx + 1] == str(kb / "papers")
-
-
-# ---------------------------------------------------------------------------
-# qmd_search — JSON output parsing
+# qmd_search — JSON output parsing (qmd v2 format)
 # ---------------------------------------------------------------------------
 
 
@@ -112,17 +69,18 @@ def test_qmd_search_parses_json_output(tmp_path: Path) -> None:
     kb = tmp_path / "kb"
     kb.mkdir()
 
+    # qmd v2 uses "file" field with qmd:// URIs
     payload = [
         {
-            "path": "papers/hydro/runoff.md",
+            "file": "qmd://my-kb/papers/hydro/runoff.md",
             "title": "Runoff Estimation",
-            "snippet": "…curve number approach…",
+            "snippet": "curve number approach",
             "score": 0.87,
         },
         {
-            "path": "packages/swatplus/api.md",
+            "file": "qmd://my-kb/packages/swatplus/api.md",
             "title": "SWAT+ API",
-            "snippet": "…parameter table…",
+            "snippet": "parameter table",
             "score": 0.62,
         },
     ]
@@ -137,25 +95,51 @@ def test_qmd_search_parses_json_output(tmp_path: Path) -> None:
     assert isinstance(results[0], SearchResult)
     assert results[0].path == "papers/hydro/runoff.md"
     assert results[0].title == "Runoff Estimation"
-    assert results[0].snippet == "…curve number approach…"
     assert results[0].score == pytest.approx(0.87)
-    assert results[1].score == pytest.approx(0.62)
+    assert results[1].path == "packages/swatplus/api.md"
 
 
-def test_qmd_search_title_falls_back_to_stem_when_missing(tmp_path: Path) -> None:
-    """If 'title' is absent in a result item, use Path.stem of 'path'."""
+def test_qmd_search_strips_line_numbers_from_path(tmp_path: Path) -> None:
+    """qmd v2 appends :linenum to file paths — strip them."""
     kb = tmp_path / "kb"
     kb.mkdir()
 
-    payload = [{"path": "papers/snow-melt-2020.md", "snippet": "…text…", "score": 0.5}]
+    payload = [
+        {
+            "file": "qmd://kb/papers/swat.md:42",
+            "title": "SWAT",
+            "snippet": "text",
+            "score": 0.5,
+        },
+    ]
 
     with patch(
         "hydrofound.query.qmd.subprocess.run",
         return_value=_make_completed_process(stdout=json.dumps(payload)),
     ):
-        results = qmd_search(kb, "snow")
+        results = qmd_search(kb, "swat")
 
-    assert results[0].title == "snow-melt-2020"
+    assert results[0].path == "papers/swat.md"
+
+
+def test_qmd_search_scope_filters_results(tmp_path: Path) -> None:
+    """Scope filters results to matching paths."""
+    kb = tmp_path / "kb"
+    kb.mkdir()
+
+    payload = [
+        {"file": "qmd://kb/papers/a.md", "title": "A", "snippet": "", "score": 0.9},
+        {"file": "qmd://kb/packages/b.md", "title": "B", "snippet": "", "score": 0.8},
+    ]
+
+    with patch(
+        "hydrofound.query.qmd.subprocess.run",
+        return_value=_make_completed_process(stdout=json.dumps(payload)),
+    ):
+        results = qmd_search(kb, "test", scope="papers")
+
+    assert len(results) == 1
+    assert results[0].path == "papers/a.md"
 
 
 def test_qmd_search_returns_empty_list_for_empty_json(tmp_path: Path) -> None:
@@ -191,11 +175,11 @@ def test_qmd_search_raises_on_nonzero_exit(tmp_path: Path) -> None:
 
 
 # ---------------------------------------------------------------------------
-# qmd_reindex — command construction
+# qmd_reindex — qmd v2 uses collection refresh
 # ---------------------------------------------------------------------------
 
 
-def test_qmd_reindex_command_construction(tmp_path: Path) -> None:
+def test_qmd_reindex_calls_collection_refresh(tmp_path: Path) -> None:
     kb = tmp_path / "kb"
     kb.mkdir()
 
@@ -210,11 +194,10 @@ def test_qmd_reindex_command_construction(tmp_path: Path) -> None:
 
     mock_run.assert_called_once()
     cmd = mock_run.call_args[0][0]
-    assert cmd == ["qmd", "index", str(kb)]
+    assert cmd == ["qmd", "collection", "refresh"]
 
 
 def test_qmd_reindex_skips_when_qmd_not_available(tmp_path: Path) -> None:
-    """When qmd is absent, reindex must return silently without calling subprocess."""
     kb = tmp_path / "kb"
     kb.mkdir()
 
