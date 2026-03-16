@@ -171,7 +171,15 @@ def fetch_command(
     pdf_dir.mkdir(exist_ok=True)
     downloaded = []
 
+    from hydrofound.discovery.unpaywall import resolve_pdf_url
+
     for r in results:
+        # Try to get a PDF URL: provider → Unpaywall fallback
+        if not r.pdf_url and r.doi:
+            resolved = asyncio.run(resolve_pdf_url(r.doi))
+            if resolved:
+                r.pdf_url = resolved
+
         if not r.pdf_url:
             console.print(f"  [dim]SKIP[/dim] {r.title[:60]} — no PDF URL")
             continue
