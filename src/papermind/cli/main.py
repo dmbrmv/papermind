@@ -59,6 +59,10 @@ app.command(name="doctor")(doctor_command)
 app.command(name="export-bibtex")(export_bibtex_command)
 app.command(name="related")(related_cmd)
 
+from papermind.cli.migrate import migrate_cmd  # noqa: E402
+
+app.command(name="migrate")(migrate_cmd)
+
 
 @app.command(name="reindex")
 def reindex_command(ctx: typer.Context) -> None:
