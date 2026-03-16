@@ -199,19 +199,12 @@ def fetch_command(
 
         # Step 2: Download papers with PDF URLs
         from papermind.discovery.downloader import download_paper
-        from papermind.discovery.unpaywall import resolve_pdf_url
 
         pdf_dir = kb_path / "pdfs"
         pdf_dir.mkdir(exist_ok=True)
         downloaded = []
 
         for r in results:
-            # Try to get a PDF URL: provider → Unpaywall fallback
-            if not r.pdf_url and r.doi:
-                resolved = asyncio.run(resolve_pdf_url(r.doi))
-                if resolved:
-                    r.pdf_url = resolved
-
             if not r.pdf_url:
                 console.print(f"  [dim]SKIP[/dim] {r.title[:60]} — no PDF URL")
                 continue

@@ -3,9 +3,12 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 from difflib import SequenceMatcher
 
 from papermind.discovery.base import PaperResult, SearchProvider
+
+logger = logging.getLogger(__name__)
 
 
 async def discover_papers(
@@ -13,19 +16,26 @@ async def discover_papers(
     providers: list[SearchProvider],
     *,
     limit: int = 10,
+    enrich_unpaywall: bool = True,
 ) -> list[PaperResult]:
     """Run search across all providers in parallel and deduplicate results.
 
     Providers are queried concurrently.  Any provider that raises an exception
     is silently skipped — its results are dropped but other providers proceed.
 
+    After deduplication, results with a DOI but no ``pdf_url`` are enriched
+    via the Unpaywall API (free, no key needed).
+
     Args:
         query: Free-text search query forwarded to every provider.
         providers: List of :class:`SearchProvider` instances to query.
         limit: Max results requested from each provider.
+        enrich_unpaywall: If True, resolve missing pdf_urls via Unpaywall
+            after deduplication. Disable for offline or testing scenarios.
 
     Returns:
-        Deduplicated list of :class:`PaperResult` objects.
+        Deduplicated list of :class:`PaperResult` objects with pdf_urls
+        enriched where possible.
     """
     tasks = [p.search(query, limit=limit) for p in providers]
     all_results = await asyncio.gather(*tasks, return_exceptions=True)
@@ -36,7 +46,39 @@ async def discover_papers(
             flat.extend(result)
         # Exception return values are silently skipped — provider already logs.
 
-    return _deduplicate(flat)
+    unique = _deduplicate(flat)
+
+    if enrich_unpaywall:
+        await _enrich_pdf_urls(unique)
+
+    return unique
+
+
+async def _enrich_pdf_urls(results: list[PaperResult]) -> None:
+    """Resolve missing pdf_urls via Unpaywall for results that have a DOI.
+
+    Runs all Unpaywall lookups concurrently.  Failures are silently skipped
+    (the result simply keeps ``pdf_url == ""``).
+
+    Args:
+        results: Deduplicated list — modified in place.
+    """
+    from papermind.discovery.unpaywall import resolve_pdf_url
+
+    candidates = [r for r in results if r.doi and not r.pdf_url]
+    if not candidates:
+        return
+
+    logger.debug("Unpaywall enrichment: %d candidate(s)", len(candidates))
+
+    resolved = await asyncio.gather(
+        *(resolve_pdf_url(r.doi) for r in candidates),
+        return_exceptions=True,
+    )
+
+    for paper, url in zip(candidates, resolved):
+        if isinstance(url, str) and url:
+            paper.pdf_url = url
 
 
 def _deduplicate(results: list[PaperResult]) -> list[PaperResult]:

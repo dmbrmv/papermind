@@ -5,7 +5,12 @@ from __future__ import annotations
 import pytest
 
 from papermind.discovery.base import PaperResult
-from papermind.discovery.orchestrator import _deduplicate, _merge_into, discover_papers
+from papermind.discovery.orchestrator import (
+    _deduplicate,
+    _enrich_pdf_urls,
+    _merge_into,
+    discover_papers,
+)
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -331,3 +336,132 @@ class TestMergeInto:
         source = _make_paper("S", authors=["Alice", "Bob"])
         _merge_into(target, source)
         assert target.authors == ["Alice", "Bob"]
+
+
+# ---------------------------------------------------------------------------
+# Unpaywall enrichment
+# ---------------------------------------------------------------------------
+
+
+class TestUnpaywallEnrichment:
+    """Orchestrator enriches missing pdf_urls via Unpaywall after dedup."""
+
+    @pytest.mark.asyncio
+    async def test_enriches_papers_with_doi_but_no_pdf_url(self) -> None:
+        """Papers with DOI and no pdf_url should be resolved via Unpaywall."""
+        from unittest.mock import AsyncMock, patch
+
+        results = [
+            _make_paper("Paper A", doi="10.1/A", pdf_url=""),
+            _make_paper("Paper B", doi="10.1/B", pdf_url="https://existing.pdf"),
+        ]
+
+        with patch(
+            "papermind.discovery.unpaywall.resolve_pdf_url",
+            new_callable=AsyncMock,
+            return_value="https://unpaywall.org/a.pdf",
+        ) as mock_resolve:
+            await _enrich_pdf_urls(results)
+
+        # Only Paper A should have been resolved (Paper B already has pdf_url)
+        mock_resolve.assert_called_once_with("10.1/A")
+        assert results[0].pdf_url == "https://unpaywall.org/a.pdf"
+        assert results[1].pdf_url == "https://existing.pdf"
+
+    @pytest.mark.asyncio
+    async def test_skips_papers_without_doi(self) -> None:
+        """Papers without a DOI should not be sent to Unpaywall."""
+        from unittest.mock import AsyncMock, patch
+
+        results = [_make_paper("No DOI Paper", doi="", pdf_url="")]
+
+        with patch(
+            "papermind.discovery.unpaywall.resolve_pdf_url",
+            new_callable=AsyncMock,
+        ) as mock_resolve:
+            await _enrich_pdf_urls(results)
+
+        mock_resolve.assert_not_called()
+        assert results[0].pdf_url == ""
+
+    @pytest.mark.asyncio
+    async def test_unpaywall_failure_leaves_pdf_url_empty(self) -> None:
+        """If Unpaywall returns None, pdf_url stays empty."""
+        from unittest.mock import AsyncMock, patch
+
+        results = [_make_paper("Paper X", doi="10.1/X", pdf_url="")]
+
+        with patch(
+            "papermind.discovery.unpaywall.resolve_pdf_url",
+            new_callable=AsyncMock,
+            return_value=None,
+        ):
+            await _enrich_pdf_urls(results)
+
+        assert results[0].pdf_url == ""
+
+    @pytest.mark.asyncio
+    async def test_unpaywall_exception_does_not_crash(self) -> None:
+        """An exception from Unpaywall should not crash enrichment."""
+        from unittest.mock import AsyncMock, patch
+
+        results = [_make_paper("Paper Y", doi="10.1/Y", pdf_url="")]
+
+        with patch(
+            "papermind.discovery.unpaywall.resolve_pdf_url",
+            new_callable=AsyncMock,
+            side_effect=RuntimeError("network error"),
+        ):
+            await _enrich_pdf_urls(results)
+
+        assert results[0].pdf_url == ""
+
+    @pytest.mark.asyncio
+    async def test_noop_when_all_have_pdf_urls(self) -> None:
+        """No Unpaywall calls when every result already has a pdf_url."""
+        from unittest.mock import AsyncMock, patch
+
+        results = [
+            _make_paper("A", doi="10.1/A", pdf_url="https://a.pdf"),
+            _make_paper("B", doi="10.1/B", pdf_url="https://b.pdf"),
+        ]
+
+        with patch(
+            "papermind.discovery.unpaywall.resolve_pdf_url",
+            new_callable=AsyncMock,
+        ) as mock_resolve:
+            await _enrich_pdf_urls(results)
+
+        mock_resolve.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_discover_papers_calls_enrichment(self) -> None:
+        """discover_papers should call _enrich_pdf_urls by default."""
+        from unittest.mock import AsyncMock, patch
+
+        provider = _MockProvider("test", [_make_paper("P", doi="10.1/P", pdf_url="")])
+
+        with patch(
+            "papermind.discovery.unpaywall.resolve_pdf_url",
+            new_callable=AsyncMock,
+            return_value="https://resolved.pdf",
+        ):
+            results = await discover_papers("q", [provider])
+
+        assert results[0].pdf_url == "https://resolved.pdf"
+
+    @pytest.mark.asyncio
+    async def test_discover_papers_skips_enrichment_when_disabled(self) -> None:
+        """enrich_unpaywall=False should skip Unpaywall calls."""
+        from unittest.mock import AsyncMock, patch
+
+        provider = _MockProvider("test", [_make_paper("P", doi="10.1/P", pdf_url="")])
+
+        with patch(
+            "papermind.discovery.unpaywall.resolve_pdf_url",
+            new_callable=AsyncMock,
+        ) as mock_resolve:
+            results = await discover_papers("q", [provider], enrich_unpaywall=False)
+
+        mock_resolve.assert_not_called()
+        assert results[0].pdf_url == ""

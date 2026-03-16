@@ -121,13 +121,10 @@ async def _download_all(results: list, output_dir: Path) -> list[Path]:
         List of paths for successfully downloaded files.
     """
     from papermind.discovery.downloader import download_paper
-    from papermind.discovery.unpaywall import resolve_pdf_url
 
     downloaded: list[Path] = []
     for r in results:
         label = (r.title or r.doi or r.pdf_url or "unknown")[:60]
-        if not r.pdf_url and r.doi:
-            r.pdf_url = await resolve_pdf_url(r.doi) or ""
         if not r.pdf_url:
             console.print(f"  [yellow]SKIP[/yellow] {label!r} — no PDF URL")
             continue
