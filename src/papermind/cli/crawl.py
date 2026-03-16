@@ -200,15 +200,17 @@ def _resolve_and_ingest_doi(
     Returns (CatalogEntry, cites, cited_by) on success, None on failure.
     """
     from papermind.discovery.downloader import download_paper
+    from papermind.discovery.openalex import resolve_pdf_url_openalex
     from papermind.discovery.semantic_scholar import lookup_citations_by_doi
     from papermind.discovery.unpaywall import resolve_pdf_url
     from papermind.ingestion.paper import ingest_paper
 
-    # Try to get PDF URL via Unpaywall
+    # Try Unpaywall first, then OpenAlex as fallback
     pdf_url = asyncio.run(resolve_pdf_url(doi))
     if not pdf_url:
-        console.print(f"  [dim]SKIP[/dim] {doi} — no PDF URL")
-        return None
+        pdf_url = asyncio.run(resolve_pdf_url_openalex(doi))
+    if not pdf_url:
+        return None  # silent skip — too noisy for 100+ DOIs
 
     # Download
     from papermind.discovery.base import PaperResult

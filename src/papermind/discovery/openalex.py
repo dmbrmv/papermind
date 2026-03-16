@@ -11,6 +11,7 @@ from papermind.discovery.base import PaperResult
 logger = logging.getLogger(__name__)
 
 _BASE_URL = "https://api.openalex.org/works"
+_MAILTO = "papermind@users.noreply"
 
 
 class OpenAlexProvider:
@@ -123,3 +124,42 @@ class OpenAlexProvider:
             venue=venue,
             citation_count=raw.get("cited_by_count", 0) or 0,
         )
+
+
+async def resolve_pdf_url_openalex(
+    doi: str,
+    timeout: float = 10.0,
+) -> str | None:
+    """Resolve a DOI to a PDF URL via OpenAlex.
+
+    Uses the OpenAlex works-by-DOI endpoint. Free, no key needed.
+
+    Args:
+        doi: DOI string (e.g. ``10.1002/hyp.14561``).
+        timeout: HTTP timeout in seconds.
+
+    Returns:
+        Direct PDF URL if found, None otherwise.
+    """
+    if not doi:
+        return None
+
+    url = f"{_BASE_URL}/doi:{doi}"
+    params = {
+        "mailto": _MAILTO,
+        "select": "open_access,primary_location",
+    }
+
+    try:
+        async with httpx.AsyncClient(timeout=timeout, follow_redirects=True) as client:
+            resp = await client.get(url, params=params)
+            if resp.status_code != 200:
+                return None
+            data = resp.json()
+    except (httpx.RequestError, Exception):
+        return None
+
+    oa = data.get("open_access", {}) or {}
+    loc = data.get("primary_location", {}) or {}
+    pdf_url = loc.get("pdf_url", "") or oa.get("oa_url", "") or ""
+    return pdf_url or None
