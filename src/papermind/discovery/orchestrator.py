@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import re
 from difflib import SequenceMatcher
 
 from papermind.discovery.base import PaperResult, SearchProvider
@@ -51,7 +52,7 @@ async def discover_papers(
     if enrich_unpaywall:
         await _enrich_pdf_urls(unique)
 
-    return unique
+    return _rank_results(unique)
 
 
 async def _enrich_pdf_urls(results: list[PaperResult]) -> None:
@@ -79,6 +80,128 @@ async def _enrich_pdf_urls(results: list[PaperResult]) -> None:
     for paper, url in zip(candidates, resolved):
         if isinstance(url, str) and url:
             paper.pdf_url = url
+
+
+def _rank_results(results: list[PaperResult]) -> list[PaperResult]:
+    """Sort results by quality score (highest first).
+
+    No results are dropped — only reordered.  This works for papers,
+    packages, and codebases without special casing.
+
+    Args:
+        results: Deduplicated, enriched list of results.
+
+    Returns:
+        Same results sorted by descending quality score.
+    """
+    return sorted(results, key=_score_result, reverse=True)
+
+
+# Domains that strongly signal academic content
+_ACADEMIC_DOMAINS = frozenset(
+    {
+        "arxiv.org",
+        "doi.org",
+        "researchgate.net",
+        "springer.com",
+        "wiley.com",
+        "sciencedirect.com",
+        "nature.com",
+        "pnas.org",
+        "nih.gov",
+        "ncbi.nlm.nih.gov",
+        "jstor.org",
+        "ieee.org",
+        "acm.org",
+        "biorxiv.org",
+        "medrxiv.org",
+        "ssrn.com",
+        "mdpi.com",
+        "frontiersin.org",
+        "plos.org",
+        "semanticscholar.org",
+    }
+)
+
+# Domains that are noise for academic discovery
+_NOISE_DOMAINS = frozenset(
+    {
+        "linkedin.com",
+        "youtube.com",
+        "twitter.com",
+        "x.com",
+        "facebook.com",
+        "reddit.com",
+        "medium.com",
+        "quora.com",
+        "pinterest.com",
+        "instagram.com",
+        "tiktok.com",
+    }
+)
+
+# Simple heuristic: title contains common academic patterns
+_ACADEMIC_TITLE_RE = re.compile(
+    r"(?:analysis|assessment|evaluation|simulation|modeling|modelling|"
+    r"review|approach|framework|method|estimation|prediction|"
+    r"calibration|validation|comparison|impact|response|dynamics|"
+    r"study|investigation|characterization|quantification)",
+    re.IGNORECASE,
+)
+
+
+def _score_result(result: PaperResult) -> int:
+    """Compute a quality score for a discovery result.
+
+    Scoring signals:
+        +3  has DOI
+        +3  has pdf_url
+        +2  title looks academic (contains common research terms)
+        +1  URL on a known academic domain (arxiv, doi.org, .edu, journals)
+        -3  URL on a social/noise domain (linkedin, youtube, twitter)
+
+    Args:
+        result: A single paper result.
+
+    Returns:
+        Integer score (higher is better).
+    """
+
+    score = 0
+
+    if result.doi:
+        score += 3
+    if result.pdf_url:
+        score += 3
+    if _ACADEMIC_TITLE_RE.search(result.title):
+        score += 2
+
+    # Check URL domain signals (from pdf_url or source URL if available)
+    url = result.pdf_url or ""
+    if url:
+        domain = _extract_domain(url)
+        if domain:
+            if domain in _NOISE_DOMAINS:
+                score -= 3
+            elif domain in _ACADEMIC_DOMAINS or domain.endswith(".edu"):
+                score += 1
+
+    return score
+
+
+def _extract_domain(url: str) -> str:
+    """Extract the base domain from a URL for classification.
+
+    Args:
+        url: Full URL string.
+
+    Returns:
+        Lowercase domain (e.g. ``"arxiv.org"``) or empty string.
+    """
+    match = re.match(r"https?://(?:www\.)?([^/]+)", url)
+    if not match:
+        return ""
+    return match.group(1).lower()
 
 
 def _deduplicate(results: list[PaperResult]) -> list[PaperResult]:

@@ -465,3 +465,133 @@ class TestUnpaywallEnrichment:
 
         mock_resolve.assert_not_called()
         assert results[0].pdf_url == ""
+
+
+# ---------------------------------------------------------------------------
+# Result ranking
+# ---------------------------------------------------------------------------
+
+
+class TestScoreResult:
+    """Unit tests for the _score_result scoring function."""
+
+    def test_doi_adds_3(self) -> None:
+        from papermind.discovery.orchestrator import _score_result
+
+        r = _make_paper("Some Title", doi="10.1/X")
+        assert _score_result(r) >= 3
+
+    def test_pdf_url_adds_3(self) -> None:
+        from papermind.discovery.orchestrator import _score_result
+
+        r = _make_paper("Some Title", pdf_url="https://example.com/paper.pdf")
+        assert _score_result(r) >= 3
+
+    def test_academic_title_adds_2(self) -> None:
+        from papermind.discovery.orchestrator import _score_result
+
+        r = _make_paper("Assessment of SWAT+ model calibration")
+        assert _score_result(r) >= 2
+
+    def test_non_academic_title_no_bonus(self) -> None:
+        from papermind.discovery.orchestrator import _score_result
+
+        r = _make_paper("Random thoughts about stuff")
+        assert _score_result(r) == 0
+
+    def test_academic_domain_adds_1(self) -> None:
+        from papermind.discovery.orchestrator import _score_result
+
+        r = _make_paper("Paper", pdf_url="https://arxiv.org/pdf/2301.12345.pdf")
+        # pdf_url (+3) + academic domain (+1) = at least 4
+        assert _score_result(r) >= 4
+
+    def test_edu_domain_adds_1(self) -> None:
+        from papermind.discovery.orchestrator import _score_result
+
+        r = _make_paper("Paper", pdf_url="https://www.stanford.edu/paper.pdf")
+        assert _score_result(r) >= 4
+
+    def test_noise_domain_subtracts_3(self) -> None:
+        from papermind.discovery.orchestrator import _score_result
+
+        r = _make_paper("Paper", pdf_url="https://linkedin.com/post/12345")
+        # pdf_url (+3) + noise (-3) = 0
+        assert _score_result(r) == 0
+
+    def test_full_score_paper(self) -> None:
+        """Paper with DOI, pdf_url on arxiv, and academic title scores 9."""
+        from papermind.discovery.orchestrator import _score_result
+
+        r = _make_paper(
+            "Assessment of hydrological modeling",
+            doi="10.1/X",
+            pdf_url="https://arxiv.org/pdf/paper.pdf",
+        )
+        # doi(+3) + pdf_url(+3) + academic_title(+2) + academic_domain(+1) = 9
+        assert _score_result(r) == 9
+
+
+class TestExtractDomain:
+    """Unit tests for _extract_domain helper."""
+
+    def test_simple_url(self) -> None:
+        from papermind.discovery.orchestrator import _extract_domain
+
+        assert _extract_domain("https://arxiv.org/pdf/123.pdf") == "arxiv.org"
+
+    def test_www_stripped(self) -> None:
+        from papermind.discovery.orchestrator import _extract_domain
+
+        assert _extract_domain("https://www.nature.com/articles/123") == "nature.com"
+
+    def test_empty_url(self) -> None:
+        from papermind.discovery.orchestrator import _extract_domain
+
+        assert _extract_domain("") == ""
+
+    def test_invalid_url(self) -> None:
+        from papermind.discovery.orchestrator import _extract_domain
+
+        assert _extract_domain("not-a-url") == ""
+
+
+class TestRankResults:
+    """Integration tests for _rank_results ordering."""
+
+    def test_higher_score_comes_first(self) -> None:
+        from papermind.discovery.orchestrator import _rank_results
+
+        low = _make_paper("Random blog post")
+        high = _make_paper(
+            "Assessment of SWAT+ calibration",
+            doi="10.1/X",
+            pdf_url="https://arxiv.org/paper.pdf",
+        )
+
+        ranked = _rank_results([low, high])
+        assert ranked[0] is high
+        assert ranked[1] is low
+
+    def test_no_results_dropped(self) -> None:
+        from papermind.discovery.orchestrator import _rank_results
+
+        papers = [
+            _make_paper("A"),
+            _make_paper("B", doi="10.1/B"),
+            _make_paper("C", pdf_url="https://c.pdf"),
+        ]
+
+        ranked = _rank_results(papers)
+        assert len(ranked) == 3
+
+    def test_stable_sort_for_equal_scores(self) -> None:
+        """Results with equal scores should maintain relative order."""
+        from papermind.discovery.orchestrator import _rank_results
+
+        a = _make_paper("Paper Alpha")
+        b = _make_paper("Paper Beta")
+
+        ranked = _rank_results([a, b])
+        assert ranked[0] is a
+        assert ranked[1] is b
