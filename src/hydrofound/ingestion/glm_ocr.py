@@ -46,7 +46,15 @@ def _ensure_model(model_name: str) -> tuple:
     if _model is not None and _processor is not None:
         return _processor, _model
 
+    import os
+    import warnings
+
     from transformers import AutoModelForImageTextToText, AutoProcessor
+
+    # Suppress noisy HF warnings during model loading
+    os.environ.setdefault("HF_HUB_DISABLE_PROGRESS_BARS", "0")
+    warnings.filterwarnings("ignore", message=".*use_fast.*")
+    warnings.filterwarnings("ignore", message=".*unauthenticated.*")
 
     logger.info("Loading GLM-OCR model: %s", model_name)
     _processor = AutoProcessor.from_pretrained(model_name, trust_remote_code=True)

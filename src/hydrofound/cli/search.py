@@ -17,7 +17,13 @@ def search_command(
     scope: str = typer.Option(
         None,
         "--scope",
-        help="Restrict search to a top-level KB subdirectory (papers/packages/codebases).",
+        help="Restrict search to a content type (papers/packages/codebases).",
+    ),
+    topic: str = typer.Option(
+        None,
+        "--topic",
+        "-t",
+        help="Filter results to a specific topic (e.g. 'swat_ml').",
     ),
     limit: int = typer.Option(
         10,
@@ -45,9 +51,16 @@ def search_command(
     # Prefer qmd if available (semantic search) — fallback if not.
     from hydrofound.query.qmd import is_qmd_available, qmd_search
 
+    # Build scope from --scope and --topic
+    effective_scope = scope or ""
+    if topic and not effective_scope:
+        effective_scope = f"papers/{topic}"
+    elif topic and effective_scope == "papers":
+        effective_scope = f"papers/{topic}"
+
     if is_qmd_available():
         try:
-            results = qmd_search(kb, query, scope=scope or "", limit=limit)
+            results = qmd_search(kb, query, scope=effective_scope, limit=limit)
         except RuntimeError as exc:
             console.print(f"[red]qmd error:[/red] {exc}")
             raise typer.Exit(code=1) from exc
@@ -56,7 +69,7 @@ def search_command(
             return
         _print_results_table(query, results)
     else:
-        _run_fallback_search(kb, query, scope=scope, limit=limit)
+        _run_fallback_search(kb, query, scope=effective_scope, limit=limit)
 
 
 def _print_results_table(query: str, results: list) -> None:
