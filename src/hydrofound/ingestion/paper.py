@@ -135,6 +135,20 @@ def ingest_paper(
         logger.warning("Paper with DOI %r already exists in catalog — skipping.", doi)
         return None
 
+    # Title similarity dedup: skip papers that look like near-duplicates.
+    from difflib import SequenceMatcher
+
+    for existing in catalog.entries:
+        if existing.type == "paper" and existing.title:
+            ratio = SequenceMatcher(None, title.lower(), existing.title.lower()).ratio()
+            if ratio > 0.9:
+                logger.warning(
+                    "Similar paper already exists: %r (%.0f%% match) — skipping.",
+                    existing.title,
+                    ratio * 100,
+                )
+                return None
+
     entry_id = generate_id("paper", title, year=year, kb_path=kb_path)
 
     topic_dir = kb_path / "papers" / topic

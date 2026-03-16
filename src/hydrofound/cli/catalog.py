@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import typer
 from rich.console import Console
 from rich.table import Table
@@ -18,9 +20,21 @@ console = Console()
 
 
 @catalog_app.command(name="show")
-def catalog_show(ctx: typer.Context) -> None:
+def catalog_show(
+    ctx: typer.Context,
+    json_output: bool = typer.Option(
+        False, "--json", help="Print raw catalog.json instead of catalog.md."
+    ),
+) -> None:
     """Print catalog.md content to the terminal."""
     kb_path = _resolve_kb(ctx)
+    if json_output:
+        catalog_json = kb_path / "catalog.json"
+        if not catalog_json.exists():
+            console.print("[yellow]catalog.json not found.[/yellow]")
+            raise typer.Exit(code=1)
+        typer.echo(catalog_json.read_text())
+        return
     catalog_md = kb_path / "catalog.md"
     if not catalog_md.exists():
         console.print("[yellow]catalog.md not found.[/yellow]")
@@ -103,3 +117,34 @@ def remove_command(
     (kb_path / "catalog.md").write_text(render_catalog_md(index.entries))
 
     console.print(f"[green]Removed[/green] entry [bold]{entry_id}[/bold]")
+
+
+def export_bibtex_command(ctx: typer.Context) -> None:
+    """Export catalog papers with DOIs to BibTeX format."""
+    from hydrofound.catalog.index import CatalogIndex
+
+    kb_path = _resolve_kb(ctx)
+    index = CatalogIndex(kb_path)
+
+    bibtex_entries = []
+    for entry in index.entries:
+        if entry.type != "paper" or not entry.doi:
+            continue
+        # Extract year from entry.added (first 4 chars) if not stored explicitly
+        year = entry.added[:4] if entry.added and len(entry.added) >= 4 else ""
+        title = (
+            entry.title.replace("{", "\\{").replace("}", "\\}") if entry.title else ""
+        )
+        bibtex_entries.append(
+            f"@article{{{entry.id},\n"
+            f"  title = {{{title}}},\n"
+            f"  doi = {{{entry.doi}}},\n"
+            f"  year = {{{year}}},\n"
+            f"}}"
+        )
+
+    if not bibtex_entries:
+        console.print("[yellow]No papers with DOIs found in catalog.[/yellow]")
+        raise typer.Exit(code=0)
+
+    typer.echo("\n\n".join(bibtex_entries))

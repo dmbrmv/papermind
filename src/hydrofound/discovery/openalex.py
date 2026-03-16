@@ -50,7 +50,7 @@ class OpenAlexProvider:
             "per_page": min(limit, 50),
             "select": "id,title,doi,authorships,publication_year,"
             "open_access,primary_location,cited_by_count,"
-            "primary_topic",
+            "primary_topic,abstract_inverted_index",
         }
         headers = {
             "User-Agent": f"hydrofound/0.1 (mailto:{self._email})",
@@ -99,12 +99,24 @@ class OpenAlexProvider:
         source = loc.get("source", {}) or {}
         venue = source.get("display_name", "") or ""
 
+        # Abstract — OpenAlex stores as inverted index {"word": [pos, ...]}
+        abstract_index = raw.get("abstract_inverted_index") or {}
+        if abstract_index:
+            pairs: list[tuple[int, str]] = []
+            for word, positions in abstract_index.items():
+                for pos in positions:
+                    pairs.append((pos, word))
+            pairs.sort()
+            abstract = " ".join(word for _, word in pairs)
+        else:
+            abstract = ""
+
         return PaperResult(
             title=raw.get("title", "") or "",
             authors=authors,
             year=raw.get("publication_year"),
             doi=doi,
-            abstract="",  # OpenAlex doesn't return abstracts in search
+            abstract=abstract,
             pdf_url=pdf_url,
             source=self.name,
             is_open_access=bool(oa.get("is_oa", False)),

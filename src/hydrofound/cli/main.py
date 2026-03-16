@@ -35,7 +35,11 @@ def main_callback(
     ctx.obj["offline"] = offline
 
 
-from hydrofound.cli.catalog import catalog_app, remove_command  # noqa: E402
+from hydrofound.cli.catalog import (  # noqa: E402
+    catalog_app,
+    export_bibtex_command,
+    remove_command,
+)
 from hydrofound.cli.discover import discover_cmd  # noqa: E402
 from hydrofound.cli.doctor import doctor_command  # noqa: E402
 from hydrofound.cli.download import download_cmd  # noqa: E402
@@ -51,6 +55,7 @@ app.command(name="remove")(remove_command)
 app.command(name="discover")(discover_cmd)
 app.command(name="download")(download_cmd)
 app.command(name="doctor")(doctor_command)
+app.command(name="export-bibtex")(export_bibtex_command)
 
 
 @app.command(name="reindex")
@@ -121,6 +126,11 @@ def fetch_command(
     no_ingest: bool = typer.Option(
         False, "--no-ingest", help="Download only, don't ingest"
     ),
+    dry_run: bool = typer.Option(
+        False,
+        "--dry-run",
+        help="Discovery only — no download, no ingest. Prints results table.",
+    ),
 ) -> None:
     """Search, download, and ingest papers in one step.
 
@@ -164,6 +174,28 @@ def fetch_command(
             raise typer.Exit(code=0)
 
         console.print(f"Found {len(results)} result(s)")
+
+        # Dry-run: print results table and exit without download/ingest
+        if dry_run:
+            from rich.table import Table
+
+            table = Table(
+                title="Discovery Results (dry-run)",
+                show_header=True,
+                header_style="bold",
+            )
+            table.add_column("Title", style="cyan", max_width=60)
+            table.add_column("DOI", style="dim", max_width=30)
+            table.add_column("PDF URL", justify="center")
+            for r in results:
+                pdf_available = "[green]yes[/green]" if r.pdf_url else "[red]no[/red]"
+                table.add_row(
+                    r.title[:60] if r.title else "(no title)",
+                    r.doi or "",
+                    pdf_available,
+                )
+            console.print(table)
+            raise typer.Exit(code=0)
 
         # Step 2: Download papers with PDF URLs
         from hydrofound.discovery.downloader import download_paper
