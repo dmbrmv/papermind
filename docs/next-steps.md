@@ -42,33 +42,20 @@
 
 ---
 
-## v1.4 — Agent-Ready Retrieval
+### v1.4.0 (2026-03-16)
+- Tiered MCP retrieval (scan/summary/detail + budget parameter)
+- `context-pack` command for agent context injection
+- Citation crawl with OA-aware DOI filtering (OpenAlex batch check)
+- Citation backfill via Semantic Scholar detail endpoint
+- `--year` filter for search (from year onward)
+- Auto-tagging via TF-IDF keyword extraction (`papermind tags refresh`)
+- Freshness tracking (`audit stale`, `audit verify`, `audit check-versions`)
+- `--from-git` and `--source-path` for package ingestion
+- Code review fixes (7 issues from 3-agent parallel review)
+- OpenAlex DOI→PDF fallback for crawl
 
-Make PaperMind useful as an agent's knowledge layer. Focus on retrieval quality
-and context efficiency — the features an AI agent calls 10+ times per session.
-
-- [ ] **Tiered MCP retrieval** — three tools with progressive detail:
-  - `scan` → title + score + ID (~50 tokens/hit, triage)
-  - `summary` → structured abstract, methods, findings (~500 tokens)
-  - `detail` → full text + equations + tables (~3k tokens)
-- [ ] **`budget` parameter** — agent says "best results in 500 tokens", PaperMind
-  compresses/truncates to fit. More useful than `limit=5` since result sizes vary.
-- [ ] **`context-pack` command** — generate a compressed topic briefing for injection
-  into agent context (CLAUDE.md, session preamble). Pre-deduplicated, cross-referenced.
-- [ ] **Citation crawl** — `papermind crawl <paper-id> --depth 2 --topic hydrology`.
-  Follow `cites` DOIs from ingested papers → discover → download → ingest referenced
-  papers. Snowball sampling to build a connected KB from seed papers. Respects dedup,
-  skips papers already in KB. Depth-limited to prevent runaway.
-- [ ] **Citation backfill** — for papers ingested before v1.2 (no cites/cited_by),
-  query Semantic Scholar by DOI to populate citation metadata retroactively.
-- [ ] **Metadata search** — `search --author smith`, `search --year 2023`,
-  `search --doi 10.1/X`. Structured query on frontmatter fields.
-- [ ] **Freshness tracking** — `last_verified`, `source_version`, `staleness_risk`
-  fields on entries. `papermind audit --stale-days 90` lists entries needing review.
-  `papermind audit --check-versions` checks PyPI for newer package versions.
-  Deprecation chains (entry A superseded by entry B).
-- [ ] **Auto-tagging** — TF-IDF keyword extraction on ingest, populate `tags` field.
-- [ ] **Playwright download fallback** — JS-rendered PDFs from paywalled sites.
+### Deferred to v1.5+
+- Playwright download fallback (JS-rendered PDFs from paywalled sites)
 
 ## v1.5 — Proactive Knowledge
 
