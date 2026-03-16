@@ -91,6 +91,7 @@ def fallback_search(
     *,
     scope: str | None = None,
     topic: str | None = None,
+    year_from: int | None = None,
     limit: int = 50,
 ) -> list[SearchResult]:
     """Search the KB by walking .md files and counting query-term occurrences.
@@ -133,6 +134,17 @@ def fallback_search(
             continue
 
         text = md_file.read_text(encoding="utf-8", errors="replace")
+
+        # Year filter: skip papers older than year_from
+        if year_from:
+            year_str = _extract_frontmatter_field(text, "year")
+            if year_str:
+                try:
+                    if int(year_str) < year_from:
+                        continue
+                except ValueError:
+                    pass
+
         matches = term_pattern.findall(text)
         if not matches:
             continue

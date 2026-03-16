@@ -42,6 +42,10 @@ def create_server(kb_path: Path) -> Server:
                             "type": "string",
                             "description": "Filter by topic",
                         },
+                        "year_from": {
+                            "type": "integer",
+                            "description": "Papers from this year onward",
+                        },
                         "limit": {
                             "type": "integer",
                             "default": 20,
@@ -397,10 +401,16 @@ def _search(kb_path: Path, args: dict) -> list:
     q = args["q"]
     scope = args.get("scope", "")
     topic = args.get("topic", "")
+    year_from = args.get("year_from")
     limit = args.get("limit", 10)
 
     if is_qmd_available():
         return qmd_search(kb_path, q, scope=scope or "", limit=limit)
     return fallback_search(
-        kb_path, q, scope=scope or None, topic=topic or None, limit=limit
+        kb_path,
+        q,
+        scope=scope or None,
+        topic=topic or None,
+        year_from=year_from,
+        limit=limit,
     )

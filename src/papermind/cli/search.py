@@ -25,6 +25,12 @@ def search_command(
         "-t",
         help="Filter results to a specific topic (e.g. 'swat_ml').",
     ),
+    year: int = typer.Option(
+        None,
+        "--year",
+        "-y",
+        help="Only papers from this year onward (e.g. --year 2020).",
+    ),
     limit: int = typer.Option(
         10,
         "--limit",
@@ -69,7 +75,9 @@ def search_command(
             return
         _print_results_table(query, results)
     else:
-        _run_fallback_search(kb, query, scope=effective_scope, limit=limit)
+        _run_fallback_search(
+            kb, query, scope=effective_scope, year_from=year, limit=limit
+        )
 
 
 def _print_results_table(query: str, results: list) -> None:
@@ -102,6 +110,7 @@ def _run_fallback_search(
     query: str,
     *,
     scope: str | None,
+    year_from: int | None = None,
     limit: int,
 ) -> None:
     """Run built-in grep-based fallback search and pretty-print results.
@@ -110,11 +119,12 @@ def _run_fallback_search(
         kb: Path to the knowledge base root.
         query: Search query string.
         scope: Optional scope filter.
+        year_from: Only include papers from this year onward.
         limit: Maximum results.
     """
     from papermind.query.fallback import fallback_search
 
-    results = fallback_search(kb, query, scope=scope, limit=limit)
+    results = fallback_search(kb, query, scope=scope, year_from=year_from, limit=limit)
 
     if not results:
         console.print(f"[yellow]No results found for:[/yellow] {query!r}")
