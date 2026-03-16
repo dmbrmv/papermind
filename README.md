@@ -18,7 +18,8 @@ pip install hydrofound
 pip install "hydrofound[ocr]"
 ```
 
-> **Note:** GLM-OCR currently requires the transformers dev branch:
+> **Note:** GLM-OCR requires a recent transformers build with GLM-OCR support.
+> If `pip install "hydrofound[ocr]"` gives a model loading error, install the dev branch:
 > `pip install "transformers @ git+https://github.com/huggingface/transformers.git"`
 
 **With semantic search (qmd):**
@@ -74,11 +75,12 @@ All commands take `--kb <path>` as a global option. Pass `--offline` to disable 
 | `ingest package <name>` | Extract a PyPI package's API and docs |
 | `ingest codebase <path>` | Walk a source tree (Python, Fortran, C) |
 | `search <query>` | Search the KB (semantic via qmd, or grep fallback) |
-| `catalog show` | List all KB entries |
+| `catalog show` | List all KB entries (`--json` for machine-readable) |
 | `catalog stats` | Summary statistics by type and topic |
 | `remove <id>` | Remove an entry from the KB |
 | `discover <query>` | Find papers via OpenAlex / Semantic Scholar / Exa |
 | `download <url\|doi>` | Download a paper PDF |
+| `export-bibtex` | Export paper citations as BibTeX |
 | `doctor` | Check installed dependencies and tool availability |
 | `reindex` | Rebuild `catalog.json` and `catalog.md` from filesystem |
 | `serve` | Start the MCP server (stdio transport) |
@@ -90,8 +92,17 @@ All commands take `--kb <path>` as a global option. Pass `--offline` to disable 
 # Fetch 10 papers on a topic, auto-download and ingest
 hydrofound --kb ~/kb fetch "differentiable hydrology neural ODE" -n 10 -t diff_hydro
 
+# Preview what fetch would do (no download/ingest)
+hydrofound --kb ~/kb fetch "SWAT calibration" -n 5 --dry-run
+
 # Ingest multiple papers from a directory
 hydrofound --kb ~/kb ingest paper papers/ --topic swat
+
+# Export citations for reference managers
+hydrofound --kb ~/kb export-bibtex > references.bib
+
+# Machine-readable catalog
+hydrofound --kb ~/kb catalog show --json
 
 # Search with topic filter
 hydrofound --kb ~/kb search "calibration" --topic swat_ml
