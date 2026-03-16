@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
+
 from papermind.query.fallback import fallback_search
 
 
@@ -43,3 +44,26 @@ def test_fallback_respects_scope(populated_kb: Path) -> None:
 def test_fallback_no_results(populated_kb: Path) -> None:
     results = fallback_search(populated_kb, "quantum entanglement")
     assert len(results) == 0
+
+
+def test_fallback_includes_abstract_in_snippet(tmp_path: Path) -> None:
+    """Papers with abstracts should show them in search snippets."""
+    kb = tmp_path / "kb"
+    (kb / "papers" / "hydrology").mkdir(parents=True)
+    (kb / "papers" / "hydrology" / "et-study.md").write_text(
+        "---\ntype: paper\ntitle: ET Study\n"
+        "abstract: Evapotranspiration is a key process in hydrology.\n"
+        "---\n\n# ET Study\n\nThis paper studies evapotranspiration.\n"
+    )
+    results = fallback_search(kb, "evapotranspiration")
+    assert len(results) == 1
+    assert "[Abstract]" in results[0].snippet
+    assert "key process" in results[0].snippet
+
+
+def test_fallback_no_abstract_no_prefix(populated_kb: Path) -> None:
+    """Papers without abstracts should not have [Abstract] prefix."""
+    results = fallback_search(populated_kb, "snow melt")
+    assert len(results) >= 1
+    for r in results:
+        assert "[Abstract]" not in r.snippet

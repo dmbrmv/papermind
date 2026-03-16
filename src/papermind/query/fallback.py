@@ -26,6 +26,25 @@ class SearchResult:
     """Relevance score: matches per KB of content (higher is better)."""
 
 
+def _extract_frontmatter_field(text: str, field: str) -> str:
+    """Return a frontmatter field value or empty string.
+
+    Args:
+        text: Full file content.
+        field: YAML field name to extract.
+
+    Returns:
+        Field value (unquoted) or empty string.
+    """
+    fm_match = re.match(r"^---\s*\n(.*?)\n---", text, re.DOTALL)
+    if fm_match:
+        for line in fm_match.group(1).splitlines():
+            m = re.match(rf"^{re.escape(field)}\s*:\s*(.+)$", line.strip())
+            if m:
+                return m.group(1).strip().strip("\"'")
+    return ""
+
+
 def _extract_frontmatter_title(text: str, filepath: Path) -> str:
     """Return the frontmatter title or a humanised filename fallback.
 
@@ -36,13 +55,9 @@ def _extract_frontmatter_title(text: str, filepath: Path) -> str:
     Returns:
         Title string.
     """
-    fm_match = re.match(r"^---\s*\n(.*?)\n---", text, re.DOTALL)
-    if fm_match:
-        for line in fm_match.group(1).splitlines():
-            m = re.match(r"^title\s*:\s*(.+)$", line.strip())
-            if m:
-                return m.group(1).strip().strip("\"'")
-    # Fallback: humanise the filename
+    title = _extract_frontmatter_field(text, "title")
+    if title:
+        return title
     return filepath.stem.replace("-", " ").replace("_", " ").title()
 
 
@@ -127,6 +142,9 @@ def fallback_search(
 
         title = _extract_frontmatter_title(text, md_file)
         snippet = _build_snippet(text, term_pattern)
+        abstract = _extract_frontmatter_field(text, "abstract")
+        if abstract:
+            snippet = f"[Abstract] {abstract[:200]} | {snippet}"
         rel_path = str(md_file.relative_to(kb_root))
 
         results.append(
