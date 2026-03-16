@@ -28,16 +28,15 @@
 
 ---
 
-## v1.3 — Polish & Publish
+### v1.3.0 (2026-03-16)
+- PyPI publish workflow (GitHub Actions, OIDC trusted publisher)
+- `catalog show --topic <name>` filter
+- Richer `fetch --dry-run` table (abstract, citation count, quality score)
+- Abstracts in grep fallback search results
+- Progress bars already shipped in v1.1 (OCR) + per-item download status
 
-Low-risk items that round out the existing feature set before adding new capabilities.
-
-- [ ] **PyPI publish** — GitHub Actions workflow for `uv publish` on tag push
-- [ ] **`catalog show --topic <name>`** — filter catalog view by topic
-- [ ] **Richer `fetch --dry-run` table** — show abstract snippet, citation count, score
-- [ ] **Abstracts in search results** — surface abstract from frontmatter in grep fallback
-- [ ] **Progress bars** — per-page OCR progress, batch download progress
-- [ ] **Playwright download fallback** — JS-rendered PDFs from ScienceDirect, Springer, etc.
+### Deferred to v1.4+
+- Playwright download fallback (JS-rendered PDFs from ScienceDirect, Springer)
 
 ## v1.4 — Smarter Ingestion
 
