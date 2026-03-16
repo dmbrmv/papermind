@@ -67,10 +67,12 @@ from papermind.cli.audit import audit_app  # noqa: E402
 from papermind.cli.backfill import backfill_cmd  # noqa: E402
 from papermind.cli.context_pack import context_pack_cmd  # noqa: E402
 from papermind.cli.crawl import crawl_cmd  # noqa: E402
+from papermind.cli.equations import equations_app  # noqa: E402
 from papermind.cli.migrate import migrate_cmd  # noqa: E402
 from papermind.cli.tags import tags_app  # noqa: E402
 
 app.add_typer(audit_app, name="audit")
+app.add_typer(equations_app, name="equations")
 app.command(name="backfill")(backfill_cmd)
 app.command(name="context-pack")(context_pack_cmd)
 app.command(name="crawl")(crawl_cmd)
