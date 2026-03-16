@@ -57,22 +57,17 @@
 ### Deferred to v1.5+
 - Playwright download fallback (JS-rendered PDFs from paywalled sites)
 
-## v1.5 — Proactive Knowledge
+### v1.5.0 (2026-03-17)
+- `papermind watch <file>` — AST concept extraction → KB search (CLI + MCP tool)
+- Structured equation extraction — regex `$$`/`$` blocks, section context, backfill
+- Search alias expansion — `aliases.yaml` with 12 domain clusters
+- 60 new tests for all v1.5 features (366 → 426 tests)
 
-PaperMind surfaces knowledge without being asked. Designed for AI agents that
-process code and text simultaneously.
+### Deferred — concept ontology
+Premature at <75 papers. Simple alias file used instead. Revisit at 75+ papers.
 
-- [ ] **`papermind watch <file>`** — given a code file, return relevant KB entries.
-  Hook integration: agent opens calibration code → PaperMind surfaces calibration
-  papers. Minimal output (~50 tokens) so it doesn't flood context.
-- [ ] **Concept ontology** — `concepts.yaml` maps terms to concept clusters
-  (gwet_coef → {groundwater, evapotranspiration, capillary_rise}). Enables
-  conceptual search beyond keyword matching. `papermind concepts suggest` auto-
-  generates from KB content.
-- [ ] **Structured equation extraction** — extract LaTeX blocks tagged by equation
-  number + symbol table from papers. `search --equations "infiltration rate"`
-  returns structured math, not OCR soup. Even partial extraction (regex-based
-  LaTeX block detection) is high value.
+## v1.6 — Deeper Proactive Knowledge
+
 - [ ] **Structured table extraction** — parameter tables from papers as queryable
   data (parameter name, min, max, units, catchment type, reference). Highest-value
   extraction target for hydrology KBs.
