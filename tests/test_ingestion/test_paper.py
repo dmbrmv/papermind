@@ -392,3 +392,66 @@ class TestNoReindexFlag:
         qmd_cmd = mock_run.call_args[0][0]
         assert qmd_cmd[0] == "qmd"
         assert "collection" in qmd_cmd
+
+
+# ---------------------------------------------------------------------------
+# E3: Title similarity deduplication (Batch D)
+# ---------------------------------------------------------------------------
+
+
+class TestTitleSimilarityDedup:
+    """Papers whose titles are >90% similar to an existing paper are rejected."""
+
+    def test_title_similarity_dedup(self, tmp_path: Path) -> None:
+        """Ingesting a paper with a >90% title match returns None (near-dup rejected)."""
+        from hydrofound.catalog.index import CatalogEntry
+
+        kb = _make_kb(tmp_path)
+        cfg = _make_config(tmp_path)
+
+        # Seed the catalog with an existing paper.
+        # "SWAT Calibration Methods" vs "SWAT Calibration Method" has ~97.9%
+        # similarity — well above the 90% threshold in ingest_paper.
+        catalog = CatalogIndex(kb)
+        catalog.add(
+            CatalogEntry(
+                id="paper-swat-calib-2020",
+                type="paper",
+                path="papers/hydrology/swat-calib-2020.md",
+                title="SWAT Calibration Methods",
+            )
+        )
+
+        # Near-duplicate: only the final 's' differs (ratio ≈ 0.979)
+        pdf = _make_pdf(tmp_path / "near-dup.pdf")
+        with _mock_convert("# SWAT Calibration Method\n\n"):
+            result = ingest_paper(pdf, "hydrology", kb, cfg, no_reindex=True)
+
+        assert result is None, (
+            "Expected None (title similarity dedup), but ingest_paper returned an entry"
+        )
+
+    def test_title_similarity_distinct_title_ingested(self, tmp_path: Path) -> None:
+        """A paper with a sufficiently different title is ingested normally."""
+        from hydrofound.catalog.index import CatalogEntry
+
+        kb = _make_kb(tmp_path)
+        cfg = _make_config(tmp_path)
+
+        catalog = CatalogIndex(kb)
+        catalog.add(
+            CatalogEntry(
+                id="paper-swat-calib-2020",
+                type="paper",
+                path="papers/hydrology/swat-calib-2020.md",
+                title="SWAT Calibration Methods",
+            )
+        )
+
+        pdf = _make_pdf(tmp_path / "different-paper.pdf")
+        with _mock_convert(
+            "# Deep Learning for Streamflow Prediction (2022)\n\nDOI: 10.9999/dl2022.\n"
+        ):
+            result = ingest_paper(pdf, "hydrology", kb, cfg, no_reindex=True)
+
+        assert result is not None, "Expected a CatalogEntry for a distinct title"

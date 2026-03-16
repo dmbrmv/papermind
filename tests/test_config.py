@@ -53,3 +53,41 @@ def test_env_vars_override_toml(
     monkeypatch.setenv("HYDROFOUND_EXA_KEY", "from-env")
     cfg = load_config(tmp_path)
     assert cfg.exa_key == "from-env"
+
+
+# ===========================================================================
+# E2: Batch C config tests
+# ===========================================================================
+
+
+def test_config_warns_unknown_section(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Unknown top-level section in config.toml triggers a warning log."""
+    config_dir = tmp_path / ".hydrofound"
+    config_dir.mkdir()
+    (config_dir / "config.toml").write_text(
+        "[ingestion]\nocr_dpi = 150\n\n[unknown_stuff]\nfoo = 42\n"
+    )
+    with caplog.at_level("WARNING", logger="hydrofound.config"):
+        load_config(tmp_path)
+
+    assert any("unknown_stuff" in record.message for record in caplog.records)
+
+
+def test_config_clamps_low_dpi(tmp_path: Path) -> None:
+    """ocr_dpi below 72 is clamped to 72."""
+    config_dir = tmp_path / ".hydrofound"
+    config_dir.mkdir()
+    (config_dir / "config.toml").write_text("[ingestion]\nocr_dpi = 10\n")
+    cfg = load_config(tmp_path)
+    assert cfg.ocr_dpi == 72
+
+
+def test_config_clamps_high_dpi(tmp_path: Path) -> None:
+    """ocr_dpi above 600 is clamped to 600."""
+    config_dir = tmp_path / ".hydrofound"
+    config_dir.mkdir()
+    (config_dir / "config.toml").write_text("[ingestion]\nocr_dpi = 9999\n")
+    cfg = load_config(tmp_path)
+    assert cfg.ocr_dpi == 600

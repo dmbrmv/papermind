@@ -524,3 +524,98 @@ def test_offline_allows_local_ops(tmp_path: Path) -> None:
     # Catalog (local)
     result = runner.invoke(app, ["--kb", str(kb), "--offline", "catalog", "show"])
     assert result.exit_code == 0
+
+
+# ===========================================================================
+# Test E1: Codebase re-ingest deduplication (Batch A)
+# ===========================================================================
+
+
+def test_codebase_reingest_single_entry(tmp_path: Path) -> None:
+    """Ingesting the same codebase twice produces exactly 1 catalog entry."""
+    kb = _init_kb(tmp_path)
+    code = _make_codebase(tmp_path)
+
+    # First ingest
+    result = runner.invoke(
+        app,
+        ["--kb", str(kb), "ingest", "codebase", str(code), "--name", "myproject"],
+    )
+    assert result.exit_code == 0, result.output
+
+    # Second ingest — same name, same path
+    result = runner.invoke(
+        app,
+        ["--kb", str(kb), "ingest", "codebase", str(code), "--name", "myproject"],
+    )
+    assert result.exit_code == 0, result.output
+
+    catalog = json.loads((kb / "catalog.json").read_text())
+    assert len(catalog) == 1, f"Expected 1 entry after re-ingest, got {len(catalog)}"
+    assert catalog[0]["id"] == "codebase-myproject"
+
+
+# ===========================================================================
+# Test E3a: fetch --dry-run produces no files in KB (Batch D)
+# ===========================================================================
+
+
+def test_fetch_dry_run(tmp_path: Path) -> None:
+    """fetch --dry-run prints results but creates no files in the KB."""
+
+    from hydrofound.discovery.base import PaperResult
+
+    kb = _init_kb(tmp_path)
+
+    fake_results = [
+        PaperResult(
+            title="Differentiable SWAT Streamflow",
+            authors=["Smith, J."],
+            year=2023,
+            doi="10.1234/fake-dry-run",
+            abstract="An abstract.",
+            pdf_url="https://example.com/paper.pdf",
+            source="semantic_scholar",
+            is_open_access=True,
+            venue="WRR",
+            citation_count=5,
+        )
+    ]
+
+    async def _fake_discover(*args, **kwargs):
+        return fake_results
+
+    with (
+        patch(
+            "hydrofound.discovery.orchestrator.discover_papers",
+            side_effect=_fake_discover,
+        ),
+        patch(
+            "hydrofound.discovery.providers.build_providers",
+            return_value=[object()],  # non-empty list to pass the providers check
+        ),
+    ):
+        result = runner.invoke(
+            app,
+            [
+                "--kb",
+                str(kb),
+                "fetch",
+                "streamflow",
+                "--dry-run",
+            ],
+        )
+
+    assert result.exit_code == 0, result.output
+
+    # No PDFs should have been downloaded
+    pdf_dir = kb / "pdfs"
+    assert not pdf_dir.exists() or list(pdf_dir.rglob("*.pdf")) == []
+
+    # No papers should have been ingested
+    papers_dir = kb / "papers"
+    assert not papers_dir.exists() or list(papers_dir.rglob("*.md")) == []
+
+    # catalog.json must still be empty
+    catalog = json.loads((kb / "catalog.json").read_text())
+    assert len(catalog) == 0

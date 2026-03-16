@@ -208,3 +208,26 @@ def test_qmd_reindex_skips_when_qmd_not_available(tmp_path: Path) -> None:
         qmd_reindex(kb)
 
     mock_run.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# E1: qmd_search passes cwd=str(kb_path) to subprocess.run (Batch A fix)
+# ---------------------------------------------------------------------------
+
+
+def test_qmd_search_passes_cwd(tmp_path: Path) -> None:
+    """subprocess.run is called with cwd=str(kb_path) so qmd finds the KB."""
+    kb = tmp_path / "kb"
+    kb.mkdir()
+
+    with patch(
+        "hydrofound.query.qmd.subprocess.run",
+        return_value=_make_completed_process(stdout="[]"),
+    ) as mock_run:
+        qmd_search(kb, "runoff")
+
+    mock_run.assert_called_once()
+    kwargs = mock_run.call_args[1]
+    assert kwargs.get("cwd") == str(kb), (
+        f"Expected cwd={str(kb)!r}, got cwd={kwargs.get('cwd')!r}"
+    )
