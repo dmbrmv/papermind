@@ -148,3 +148,88 @@ def test_export_bibtex(tmp_path: Path) -> None:
     assert result.exit_code == 0, result.output
     assert "@article" in result.output
     assert "10.5194/hess-2022-001" in result.output
+
+
+# ===========================================================================
+# catalog show --topic filter
+# ===========================================================================
+
+
+def _init_kb_multi_topic(tmp_path: Path) -> Path:
+    """Create a KB with entries in two topics."""
+    import frontmatter
+
+    kb = tmp_path / "kb"
+    runner.invoke(app, ["init", str(kb)])
+
+    entries = []
+    for topic, title, eid in [
+        ("hydrology", "Water Balance Study", "paper-water-2024"),
+        ("hydrology", "Rainfall Analysis", "paper-rain-2023"),
+        ("climate", "Temperature Trends", "paper-temp-2024"),
+    ]:
+        d = kb / "papers" / topic
+        d.mkdir(parents=True, exist_ok=True)
+        post = frontmatter.Post(f"# {title}")
+        post.metadata = {
+            "id": eid,
+            "type": "paper",
+            "title": title,
+            "topic": topic,
+        }
+        slug = eid.removeprefix("paper-")
+        (d / f"{slug}.md").write_text(frontmatter.dumps(post))
+        entries.append(
+            {
+                "id": eid,
+                "type": "paper",
+                "title": title,
+                "path": f"papers/{topic}/{slug}.md",
+                "topic": topic,
+            }
+        )
+
+    (kb / "catalog.json").write_text(json.dumps(entries, indent=2))
+
+    from papermind.catalog.index import CatalogIndex
+    from papermind.catalog.render import render_catalog_md
+
+    index = CatalogIndex(kb)
+    (kb / "catalog.md").write_text(render_catalog_md(index.entries))
+    return kb
+
+
+def test_catalog_show_topic_filter(tmp_path: Path) -> None:
+    """--topic filters to only entries with that topic."""
+    kb = _init_kb_multi_topic(tmp_path)
+    result = runner.invoke(
+        app, ["--kb", str(kb), "catalog", "show", "--topic", "climate"]
+    )
+    assert result.exit_code == 0
+    assert "Temperature Trends" in result.output
+    assert "Water Balance" not in result.output
+    assert "Rainfall" not in result.output
+
+
+def test_catalog_show_topic_filter_json(tmp_path: Path) -> None:
+    """--topic + --json returns filtered JSON."""
+    kb = _init_kb_multi_topic(tmp_path)
+    result = runner.invoke(
+        app,
+        ["--kb", str(kb), "catalog", "show", "--json", "--topic", "hydrology"],
+    )
+    assert result.exit_code == 0
+    data = json.loads(result.output)
+    assert len(data) == 2
+    topics = {e["topic"] for e in data}
+    assert topics == {"hydrology"}
+
+
+def test_catalog_show_topic_no_match(tmp_path: Path) -> None:
+    """--topic with unknown topic shows message and exits 0."""
+    kb = _init_kb_multi_topic(tmp_path)
+    result = runner.invoke(
+        app, ["--kb", str(kb), "catalog", "show", "--topic", "physics"]
+    )
+    assert result.exit_code == 0
+    assert "No entries" in result.output

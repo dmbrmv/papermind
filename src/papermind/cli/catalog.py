@@ -22,24 +22,33 @@ console = Console()
 @catalog_app.command(name="show")
 def catalog_show(
     ctx: typer.Context,
-    json_output: bool = typer.Option(
-        False, "--json", help="Print raw catalog.json instead of catalog.md."
-    ),
+    json_output: bool = typer.Option(False, "--json", help="Print raw catalog.json."),
+    topic: str = typer.Option("", "--topic", "-t", help="Filter entries by topic."),
 ) -> None:
-    """Print catalog.md content to the terminal."""
+    """Print catalog contents to the terminal."""
+    import json
+
+    from papermind.catalog.index import CatalogIndex
+    from papermind.catalog.render import render_catalog_md
+
     kb_path = _resolve_kb(ctx)
+    index = CatalogIndex(kb_path)
+
+    entries = index.entries
+    if topic:
+        entries = [e for e in entries if e.topic == topic]
+        if not entries:
+            console.print(
+                f"[yellow]No entries with topic[/yellow] [bold]{topic!r}[/bold]"
+            )
+            raise typer.Exit(code=0)
+
     if json_output:
-        catalog_json = kb_path / "catalog.json"
-        if not catalog_json.exists():
-            console.print("[yellow]catalog.json not found.[/yellow]")
-            raise typer.Exit(code=1)
-        typer.echo(catalog_json.read_text())
+        data = [e.to_dict() for e in entries]
+        typer.echo(json.dumps(data, indent=2))
         return
-    catalog_md = kb_path / "catalog.md"
-    if not catalog_md.exists():
-        console.print("[yellow]catalog.md not found.[/yellow]")
-        raise typer.Exit(code=1)
-    typer.echo(catalog_md.read_text())
+
+    typer.echo(render_catalog_md(entries))
 
 
 @catalog_app.command(name="stats")
