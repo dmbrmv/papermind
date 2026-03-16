@@ -175,7 +175,7 @@ def _handle_get(kb_path: Path, args: dict) -> list[TextContent]:
     rel_path = args["path"]
     # Path traversal protection
     full_path = (kb_path / rel_path).resolve()
-    if not str(full_path).startswith(str(kb_path.resolve())):
+    if not full_path.is_relative_to(kb_path.resolve()):
         return [
             TextContent(
                 type="text",
@@ -201,7 +201,7 @@ def _handle_multi_get(kb_path: Path, args: dict) -> list[TextContent]:
     texts = []
     for p in args["paths"]:
         full_path = (kb_path / p).resolve()
-        if not str(full_path).startswith(str(kb_path.resolve())):
+        if not full_path.is_relative_to(kb_path.resolve()):
             texts.append(f"## {p}\n\nError: path outside knowledge base.")
             continue
         if full_path.exists():

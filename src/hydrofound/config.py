@@ -2,10 +2,16 @@
 
 from __future__ import annotations
 
+import logging
 import os
 import tomllib
 from dataclasses import dataclass
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
+
+# Known top-level sections in config.toml
+_KNOWN_SECTIONS = {"search", "apis", "ingestion", "firecrawl", "privacy"}
 
 
 @dataclass
@@ -73,6 +79,27 @@ def load_config(base_path: Path) -> HydroFoundConfig:
 
         privacy = data.get("privacy", {})
         cfg.offline_only = privacy.get("offline_only", cfg.offline_only)
+
+        # Warn on unknown top-level sections
+        unknown = set(data.keys()) - _KNOWN_SECTIONS
+        for section in sorted(unknown):
+            logger.warning(
+                "config.toml: unknown section [%s] — will be ignored", section
+            )
+
+        # Clamp ocr_dpi to [72, 600]
+        if cfg.ocr_dpi < 72:
+            logger.warning(
+                "config.toml: ocr_dpi=%d is below minimum (72) — clamped to 72",
+                cfg.ocr_dpi,
+            )
+            cfg.ocr_dpi = 72
+        elif cfg.ocr_dpi > 600:
+            logger.warning(
+                "config.toml: ocr_dpi=%d exceeds maximum (600) — clamped to 600",
+                cfg.ocr_dpi,
+            )
+            cfg.ocr_dpi = 600
 
     # Env vars override everything
     cfg.semantic_scholar_key = os.environ.get(

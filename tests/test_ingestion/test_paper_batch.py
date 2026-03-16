@@ -39,7 +39,7 @@ def _make_kb(tmp_path: Path) -> Path:
     return kb
 
 
-def _glm_from_store(path, model_name="zai-org/GLM-OCR", dpi=150, image_dir=None):
+def _glm_from_store(path, model_name="zai-org/GLM-OCR", dpi=150):
     """Mock GLM-OCR that returns markdown from _MD_STORE by PDF stem."""
     stem = Path(path).stem
     md = _MD_STORE.get(stem)

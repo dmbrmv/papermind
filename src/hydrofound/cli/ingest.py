@@ -7,6 +7,7 @@ from pathlib import Path
 import typer
 from rich.console import Console
 
+from hydrofound.cli.utils import _resolve_kb
 from hydrofound.ingestion.validation import ValidationError
 
 ingest_app = typer.Typer(
@@ -16,24 +17,6 @@ ingest_app = typer.Typer(
 )
 
 console = Console()
-
-
-def _resolve_kb(ctx: typer.Context) -> Path:
-    """Resolve the KB path from context or raise an error."""
-    kb: Path | None = ctx.obj.get("kb") if ctx.obj else None
-    if kb is None:
-        console.print(
-            "[red]No knowledge base specified.[/red] "
-            "Pass --kb <path> or run from within a KB directory."
-        )
-        raise typer.Exit(code=1)
-    if not (kb / ".hydrofound").exists():
-        console.print(
-            f"[red]Not a valid HydroFound KB:[/red] {kb}\n"
-            "Run [bold]hydrofound init[/bold] to create one."
-        )
-        raise typer.Exit(code=1)
-    return kb
 
 
 @ingest_app.command(name="codebase")
@@ -171,6 +154,9 @@ def ingest_paper_cmd(
         raise typer.Exit(code=1) from exc
     except (RuntimeError, ValidationError) as exc:
         console.print(f"[red]Ingestion failed:[/red] {exc}")
+        raise typer.Exit(code=1) from exc
+    except Exception as exc:
+        console.print(f"[red]Error:[/red] {exc}")
         raise typer.Exit(code=1) from exc
 
     if entry is None:

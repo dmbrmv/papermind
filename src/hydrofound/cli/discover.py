@@ -10,6 +10,8 @@ import typer
 from rich.console import Console
 from rich.table import Table
 
+from hydrofound.config import HydroFoundConfig
+
 console = Console()
 
 app = typer.Typer(help="Discover papers from academic search APIs.")
@@ -82,8 +84,6 @@ def _build_providers(source: str, cfg: HydroFoundConfig) -> list:
             "[yellow]Exa provider skipped:[/yellow] "
             "set HYDROFOUND_EXA_KEY or exa_key in config.toml."
         )
-    return providers
-
     return providers
 
 

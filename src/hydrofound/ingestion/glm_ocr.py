@@ -252,19 +252,16 @@ def convert_pdf_glm(
     path: Path,
     model_name: str = "zai-org/GLM-OCR",
     dpi: int = 150,
-    image_dir: Path | None = None,
 ) -> str:
     """Convert a PDF file to markdown using GLM-OCR.
 
     Renders each page to an image, runs OCR, and concatenates the results
-    with page break markers. Optionally extracts embedded images.
+    with page break markers.
 
     Args:
         path: Path to the PDF file.
         model_name: HuggingFace model ID for GLM-OCR.
         dpi: Resolution for PDF page rendering.
-        image_dir: If provided, extract embedded images to this directory
-            and append an image gallery section to the markdown.
 
     Returns:
         Concatenated markdown string for all pages.
@@ -291,14 +288,4 @@ def convert_pdf_glm(
         pages_md.append(page_text)
 
     markdown = "\n\n---\n\n".join(pages_md)
-    markdown = _add_markdown_headings(markdown)
-
-    # Extract embedded images if requested
-    if image_dir is not None:
-        saved_images = extract_images(path, image_dir)
-        if saved_images:
-            markdown += "\n\n---\n\n## Figures\n\n"
-            for img_name in saved_images:
-                markdown += f"![{img_name}]({img_name})\n\n"
-
-    return markdown
+    return _add_markdown_headings(markdown)

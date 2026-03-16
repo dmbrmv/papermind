@@ -288,7 +288,7 @@ def test_batch_paper_ingest(tmp_path: Path) -> None:
 
     call_count = {"n": 0}
 
-    def fake_glm_convert(path, model_name="", dpi=150, image_dir=None):
+    def fake_glm_convert(path, model_name="", dpi=150):
         call_count["n"] += 1
         return (
             f"# Paper {call_count['n']}\n\nContent of paper {call_count['n']} (2024).\n"

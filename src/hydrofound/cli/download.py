@@ -8,19 +8,9 @@ from pathlib import Path
 import typer
 from rich.console import Console
 
+from hydrofound.cli.utils import _resolve_kb
+
 console = Console()
-
-
-def _resolve_kb(ctx: typer.Context) -> Path:
-    """Resolve KB path from context or exit with an error."""
-    kb: Path | None = ctx.obj.get("kb") if ctx.obj else None
-    if kb is None:
-        console.print(
-            "[red]No knowledge base specified.[/red] "
-            "Pass [bold]--kb <path>[/bold] or run from within a KB directory."
-        )
-        raise typer.Exit(code=1)
-    return kb
 
 
 def download_cmd(

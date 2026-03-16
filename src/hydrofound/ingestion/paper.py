@@ -18,14 +18,12 @@ logger = logging.getLogger(__name__)
 def convert_pdf(
     path: Path,
     config: HydroFoundConfig,
-    image_dir: Path | None = None,
 ) -> str:
     """Convert PDF to markdown using GLM-OCR.
 
     Args:
         path: Path to the PDF file.
         config: HydroFound configuration.
-        image_dir: If provided, extract embedded figures to this directory.
 
     Returns:
         Markdown string.
@@ -40,7 +38,6 @@ def convert_pdf(
         path,
         model_name=config.ocr_model,
         dpi=config.ocr_dpi,
-        image_dir=image_dir,
     )
 
 

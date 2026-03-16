@@ -143,84 +143,93 @@ def fetch_command(
         )
         raise typer.Exit(code=1)
 
-    from hydrofound.config import load_config
-    from hydrofound.discovery.orchestrator import discover_papers
+    try:
+        from hydrofound.config import load_config
+        from hydrofound.discovery.orchestrator import discover_papers
+        from hydrofound.discovery.providers import build_providers
 
-    config = load_config(kb_path)
+        config = load_config(kb_path)
 
-    # Step 1: Discover
-    console.print(f"Searching for: [bold]{query}[/bold] (limit={limit})")
-    providers = build_providers(source, config)
-    if not providers:
-        console.print("[red]No providers available.[/red] Set API keys first.")
-        raise typer.Exit(code=1)
+        # Step 1: Discover
+        console.print(f"Searching for: [bold]{query}[/bold] (limit={limit})")
+        providers = build_providers(source, config)
+        if not providers:
+            console.print("[red]No providers available.[/red] Set API keys first.")
+            raise typer.Exit(code=1)
 
-    results = asyncio.run(discover_papers(query, providers, limit=limit))
+        results = asyncio.run(discover_papers(query, providers, limit=limit))
 
-    if not results:
-        console.print("[yellow]No results found.[/yellow]")
-        raise typer.Exit(code=0)
+        if not results:
+            console.print("[yellow]No results found.[/yellow]")
+            raise typer.Exit(code=0)
 
-    console.print(f"Found {len(results)} result(s)")
+        console.print(f"Found {len(results)} result(s)")
 
-    # Step 2: Download papers with PDF URLs
-    from hydrofound.discovery.downloader import download_paper
+        # Step 2: Download papers with PDF URLs
+        from hydrofound.discovery.downloader import download_paper
+        from hydrofound.discovery.unpaywall import resolve_pdf_url
 
-    pdf_dir = kb_path / "pdfs"
-    pdf_dir.mkdir(exist_ok=True)
-    downloaded = []
+        pdf_dir = kb_path / "pdfs"
+        pdf_dir.mkdir(exist_ok=True)
+        downloaded = []
 
-    from hydrofound.discovery.unpaywall import resolve_pdf_url
+        for r in results:
+            # Try to get a PDF URL: provider → Unpaywall fallback
+            if not r.pdf_url and r.doi:
+                resolved = asyncio.run(resolve_pdf_url(r.doi))
+                if resolved:
+                    r.pdf_url = resolved
 
-    for r in results:
-        # Try to get a PDF URL: provider → Unpaywall fallback
-        if not r.pdf_url and r.doi:
-            resolved = asyncio.run(resolve_pdf_url(r.doi))
-            if resolved:
-                r.pdf_url = resolved
+            if not r.pdf_url:
+                console.print(f"  [dim]SKIP[/dim] {r.title[:60]} — no PDF URL")
+                continue
 
-        if not r.pdf_url:
-            console.print(f"  [dim]SKIP[/dim] {r.title[:60]} — no PDF URL")
-            continue
+            try:
+                pdf_path = asyncio.run(download_paper(r, pdf_dir))
+                if pdf_path:
+                    console.print(f"  [green]OK[/green]   {r.title[:60]}")
+                    downloaded.append((pdf_path, r))
+                else:
+                    console.print(
+                        f"  [yellow]FAIL[/yellow] {r.title[:60]} — not a valid PDF"
+                    )
+            except Exception as exc:
+                console.print(f"  [yellow]FAIL[/yellow] {r.title[:60]} — {exc}")
 
-        try:
-            pdf_path = asyncio.run(download_paper(r, pdf_dir))
-            if pdf_path:
-                console.print(f"  [green]OK[/green]   {r.title[:60]}")
-                downloaded.append((pdf_path, r))
-            else:
-                console.print(
-                    f"  [yellow]FAIL[/yellow] {r.title[:60]} — not a valid PDF"
-                )
-        except Exception as exc:
-            console.print(f"  [yellow]FAIL[/yellow] {r.title[:60]} — {exc}")
+        if not downloaded:
+            console.print("[yellow]No papers downloaded.[/yellow]")
+            raise typer.Exit(code=0)
 
-    if not downloaded:
-        console.print("[yellow]No papers downloaded.[/yellow]")
-        raise typer.Exit(code=0)
+        console.print(f"\nDownloaded {len(downloaded)} paper(s)")
 
-    console.print(f"\nDownloaded {len(downloaded)} paper(s)")
+        if no_ingest:
+            console.print("Skipping ingestion (--no-ingest)")
+            raise typer.Exit(code=0)
 
-    if no_ingest:
-        console.print("Skipping ingestion (--no-ingest)")
-        raise typer.Exit(code=0)
+        # Step 3: Ingest
+        from hydrofound.ingestion.paper import ingest_paper
 
-    # Step 3: Ingest
-    from hydrofound.ingestion.paper import ingest_paper
+        ingested = 0
+        for pdf_path, paper_result in downloaded:
+            try:
+                entry = ingest_paper(pdf_path, topic, kb_path, config, no_reindex=True)
+                if entry:
+                    console.print(f"  [green]Ingested[/green] {entry.title[:60]}")
+                    ingested += 1
+                else:
+                    console.print("  [dim]Skipped[/dim] (duplicate DOI)")
+            except Exception as exc:
+                console.print(f"  [red]Failed[/red] {pdf_path.name}: {exc}")
 
-    ingested = 0
-    for pdf_path, paper_result in downloaded:
-        try:
-            entry = ingest_paper(pdf_path, topic, kb_path, config, no_reindex=True)
-            if entry:
-                console.print(f"  [green]Ingested[/green] {entry.title[:60]}")
-                ingested += 1
-            else:
-                console.print("  [dim]Skipped[/dim] (duplicate DOI)")
-        except Exception as exc:
-            console.print(f"  [red]Failed[/red] {pdf_path.name}: {exc}")
+        console.print(
+            f"\n[bold]{ingested} paper(s) ingested into topic '{topic}'[/bold]"
+        )
 
-    console.print(f"\n[bold]{ingested} paper(s) ingested into topic '{topic}'[/bold]")
+    except typer.Exit:
+        raise
+    except Exception as exc:
+        console.print(f"[red]Error:[/red] {exc}")
+        raise typer.Exit(code=1) from exc
 
 
 @app.command()
