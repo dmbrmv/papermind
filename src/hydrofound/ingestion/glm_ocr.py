@@ -57,7 +57,17 @@ def _ensure_model(model_name: str) -> tuple:
     warnings.filterwarnings("ignore", message=".*unauthenticated.*")
 
     logger.info("Loading GLM-OCR model: %s", model_name)
-    _processor = AutoProcessor.from_pretrained(model_name, trust_remote_code=True)
+    try:
+        _processor = AutoProcessor.from_pretrained(model_name, trust_remote_code=True)
+    except (ValueError, KeyError, OSError) as exc:
+        import transformers
+
+        raise ImportError(
+            f"GLM-OCR model requires transformers dev branch. "
+            f"Installed: {transformers.__version__}. "
+            f"Install with: pip install 'transformers @ "
+            f"git+https://github.com/huggingface/transformers.git'"
+        ) from exc
     _model = AutoModelForImageTextToText.from_pretrained(
         model_name,
         torch_dtype="auto",

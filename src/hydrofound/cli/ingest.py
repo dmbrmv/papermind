@@ -87,6 +87,9 @@ def ingest_codebase(
     )
 
     catalog = CatalogIndex(kb_path)
+    # Remove old entry if re-ingesting
+    if catalog.get(entry.id):
+        catalog.remove(entry.id)
     catalog.add(entry)
 
     # Regenerate catalog.md

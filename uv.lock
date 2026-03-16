@@ -496,7 +496,7 @@ requires-dist = [
     { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.4" },
     { name = "torch", marker = "extra == 'ocr'", specifier = ">=2.0" },
     { name = "torchvision", marker = "extra == 'ocr'", specifier = ">=0.20" },
-    { name = "transformers", marker = "extra == 'ocr'", specifier = ">=5.0" },
+    { name = "transformers", marker = "extra == 'ocr'", specifier = ">=4.48" },
     { name = "typer", specifier = ">=0.9" },
 ]
 provides-extras = ["ocr", "browser", "dev"]

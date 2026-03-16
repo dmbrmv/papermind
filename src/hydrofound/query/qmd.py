@@ -45,7 +45,7 @@ def qmd_search(
     """
     cmd = ["qmd", "search", query, "--json"]
 
-    result = subprocess.run(cmd, capture_output=True, text=True)  # noqa: S603
+    result = subprocess.run(cmd, capture_output=True, text=True, cwd=str(kb_path))  # noqa: S603
     if result.returncode != 0:
         raise RuntimeError(f"qmd search failed: {result.stderr}")
 
