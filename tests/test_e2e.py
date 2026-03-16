@@ -1,4 +1,4 @@
-"""End-to-end integration tests for HydroFound CLI.
+"""End-to-end integration tests for PaperMind CLI.
 
 These tests exercise full workflows: init → ingest → search → catalog → remove → reindex.
 They use CliRunner (in-process) and mock GLM-OCR where needed.
@@ -13,7 +13,7 @@ from unittest.mock import patch
 import frontmatter
 from typer.testing import CliRunner
 
-from hydrofound.cli.main import app
+from papermind.cli.main import app
 
 runner = CliRunner()
 
@@ -66,11 +66,11 @@ def _make_fake_pdf(path: Path) -> Path:
 
 
 def test_init_with_kb_flag(tmp_path: Path) -> None:
-    """hydrofound --kb <path> init creates KB at the --kb path."""
+    """papermind --kb <path> init creates KB at the --kb path."""
     target = tmp_path / "my_kb"
     result = runner.invoke(app, ["--kb", str(target), "init"])
     assert result.exit_code == 0, result.output
-    assert (target / ".hydrofound").is_dir()
+    assert (target / ".papermind").is_dir()
     assert (target / "catalog.json").is_file()
 
 
@@ -80,7 +80,7 @@ def test_init_positional_overrides_kb(tmp_path: Path) -> None:
     positional = tmp_path / "from_arg"
     result = runner.invoke(app, ["--kb", str(kb_path), "init", str(positional)])
     assert result.exit_code == 0
-    assert (positional / ".hydrofound").is_dir()
+    assert (positional / ".papermind").is_dir()
     # --kb path should NOT be created
     assert not kb_path.exists()
 
@@ -149,16 +149,16 @@ def test_codebase_full_workflow(tmp_path: Path) -> None:
 
 
 def test_package_ingest_and_search(tmp_path: Path) -> None:
-    """Ingest a real package (hydrofound itself) and search its API."""
+    """Ingest a real package (papermind itself) and search its API."""
     kb = _init_kb(tmp_path)
 
-    # Ingest hydrofound's own API (no network needed — griffe works locally)
-    result = runner.invoke(app, ["--kb", str(kb), "ingest", "package", "hydrofound"])
+    # Ingest papermind's own API (no network needed — griffe works locally)
+    result = runner.invoke(app, ["--kb", str(kb), "ingest", "package", "papermind"])
     assert result.exit_code == 0, result.output
-    assert "hydrofound" in result.output.lower()
+    assert "papermind" in result.output.lower()
 
     # Verify files created
-    assert (kb / "packages" / "hydrofound" / "api.md").exists()
+    assert (kb / "packages" / "papermind" / "api.md").exists()
 
     # Search for a known function
     result = runner.invoke(app, ["--kb", str(kb), "search", "init_command"])
@@ -184,7 +184,7 @@ def test_paper_ingest_via_glm_mock(tmp_path: Path) -> None:
     )
 
     with patch(
-        "hydrofound.ingestion.glm_ocr.convert_pdf_glm",
+        "papermind.ingestion.glm_ocr.convert_pdf_glm",
         return_value=markdown_output,
     ):
         result = runner.invoke(
@@ -295,7 +295,7 @@ def test_batch_paper_ingest(tmp_path: Path) -> None:
         )
 
     with patch(
-        "hydrofound.ingestion.glm_ocr.convert_pdf_glm",
+        "papermind.ingestion.glm_ocr.convert_pdf_glm",
         side_effect=fake_glm_convert,
     ):
         result = runner.invoke(
@@ -323,7 +323,7 @@ def test_duplicate_doi_rejected(tmp_path: Path) -> None:
     markdown = "# Same Paper\n\nDOI: 10.1234/test-doi-duplicate\n\nContent (2024).\n"
 
     with patch(
-        "hydrofound.ingestion.glm_ocr.convert_pdf_glm",
+        "papermind.ingestion.glm_ocr.convert_pdf_glm",
         return_value=markdown,
     ):
         # First ingest
@@ -418,8 +418,8 @@ def test_multi_type_kb(tmp_path: Path) -> None:
         ["--kb", str(kb), "ingest", "codebase", str(code), "--name", "flowmodel"],
     )
 
-    # Ingest package (hydrofound itself — always available)
-    runner.invoke(app, ["--kb", str(kb), "ingest", "package", "hydrofound"])
+    # Ingest package (papermind itself — always available)
+    runner.invoke(app, ["--kb", str(kb), "ingest", "package", "papermind"])
 
     # Catalog should have 2 entries
     catalog = json.loads((kb / "catalog.json").read_text())
@@ -482,7 +482,7 @@ def test_double_init(tmp_path: Path) -> None:
 def test_mcp_server_lists_tools(tmp_path: Path) -> None:
     """MCP server exposes the expected 6 tools."""
 
-    from hydrofound.mcp_server import create_server
+    from papermind.mcp_server import create_server
 
     kb = _init_kb(tmp_path)
     server = create_server(kb)
@@ -563,7 +563,7 @@ def test_codebase_reingest_single_entry(tmp_path: Path) -> None:
 def test_fetch_dry_run(tmp_path: Path) -> None:
     """fetch --dry-run prints results but creates no files in the KB."""
 
-    from hydrofound.discovery.base import PaperResult
+    from papermind.discovery.base import PaperResult
 
     kb = _init_kb(tmp_path)
 
@@ -587,11 +587,11 @@ def test_fetch_dry_run(tmp_path: Path) -> None:
 
     with (
         patch(
-            "hydrofound.discovery.orchestrator.discover_papers",
+            "papermind.discovery.orchestrator.discover_papers",
             side_effect=_fake_discover,
         ),
         patch(
-            "hydrofound.discovery.providers.build_providers",
+            "papermind.discovery.providers.build_providers",
             return_value=[object()],  # non-empty list to pass the providers check
         ),
     ):

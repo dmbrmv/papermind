@@ -1,4 +1,4 @@
-"""Tests for hydrofound init command."""
+"""Tests for papermind init command."""
 
 from __future__ import annotations
 
@@ -6,21 +6,21 @@ from pathlib import Path
 
 from typer.testing import CliRunner
 
-from hydrofound.cli.main import app
+from papermind.cli.main import app
 
 runner = CliRunner()
 
 
 def test_init_creates_folder_structure(tmp_path: Path) -> None:
-    """init creates papers/, packages/, codebases/, .hydrofound/."""
+    """init creates papers/, packages/, codebases/, .papermind/."""
     target = tmp_path / "MyKB"
     result = runner.invoke(app, ["init", str(target)])
     assert result.exit_code == 0
     assert (target / "papers").is_dir()
     assert (target / "packages").is_dir()
     assert (target / "codebases").is_dir()
-    assert (target / ".hydrofound").is_dir()
-    assert (target / ".hydrofound" / "config.toml").is_file()
+    assert (target / ".papermind").is_dir()
+    assert (target / ".papermind" / "config.toml").is_file()
     assert (target / ".gitignore").is_file()
     assert (target / "catalog.json").is_file()
 
@@ -30,8 +30,8 @@ def test_init_gitignore_excludes_config(tmp_path: Path) -> None:
     target = tmp_path / "MyKB"
     runner.invoke(app, ["init", str(target)])
     gitignore = (target / ".gitignore").read_text()
-    assert ".hydrofound/config.toml" in gitignore
-    assert ".hydrofound/qmd/" in gitignore
+    assert ".papermind/config.toml" in gitignore
+    assert ".papermind/qmd/" in gitignore
 
 
 def test_init_catalog_is_empty_array(tmp_path: Path) -> None:

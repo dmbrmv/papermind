@@ -1,4 +1,4 @@
-"""Tests for the hydrofound doctor CLI command."""
+"""Tests for the papermind doctor CLI command."""
 
 from __future__ import annotations
 
@@ -8,7 +8,7 @@ from unittest.mock import patch
 
 from typer.testing import CliRunner
 
-from hydrofound.cli.main import app
+from papermind.cli.main import app
 
 runner = CliRunner()
 
@@ -85,12 +85,12 @@ def test_doctor_playwright_missing() -> None:
 
 
 def test_doctor_api_key_set() -> None:
-    """When HYDROFOUND_EXA_KEY is set, the output shows 'set'."""
-    env = {"HYDROFOUND_EXA_KEY": "sk-test-123"}
+    """When PAPERMIND_EXA_KEY is set, the output shows 'set'."""
+    env = {"PAPERMIND_EXA_KEY": "sk-test-123"}
     with patch.dict("os.environ", env, clear=False):
         result = runner.invoke(app, ["doctor"])
     assert result.exit_code == 0
-    assert "HYDROFOUND_EXA_KEY" in result.output
+    assert "PAPERMIND_EXA_KEY" in result.output
     # The key value must NOT appear — only presence is checked
     assert "sk-test-123" not in result.output
     assert "set" in result.output
@@ -99,9 +99,9 @@ def test_doctor_api_key_set() -> None:
 def test_doctor_api_key_not_set() -> None:
     """When API keys are absent the output shows 'not set'."""
     keys = [
-        "HYDROFOUND_EXA_KEY",
-        "HYDROFOUND_SEMANTIC_SCHOLAR_KEY",
-        "HYDROFOUND_FIRECRAWL_KEY",
+        "PAPERMIND_EXA_KEY",
+        "PAPERMIND_SEMANTIC_SCHOLAR_KEY",
+        "PAPERMIND_FIRECRAWL_KEY",
     ]
     env_patch = {k: "" for k in keys}
     with patch.dict("os.environ", env_patch, clear=False):
@@ -124,9 +124,9 @@ def test_doctor_all_three_api_keys_listed() -> None:
     result = runner.invoke(app, ["doctor"])
     assert result.exit_code == 0
     for key in (
-        "HYDROFOUND_EXA_KEY",
-        "HYDROFOUND_SEMANTIC_SCHOLAR_KEY",
-        "HYDROFOUND_FIRECRAWL_KEY",
+        "PAPERMIND_EXA_KEY",
+        "PAPERMIND_SEMANTIC_SCHOLAR_KEY",
+        "PAPERMIND_FIRECRAWL_KEY",
     ):
         assert key in result.output
 
@@ -135,9 +135,9 @@ def test_doctor_does_not_print_key_values() -> None:
     """API key values must never appear in the output."""
     secret = "super-secret-value-xyz"
     env = {
-        "HYDROFOUND_EXA_KEY": secret,
-        "HYDROFOUND_SEMANTIC_SCHOLAR_KEY": secret,
-        "HYDROFOUND_FIRECRAWL_KEY": secret,
+        "PAPERMIND_EXA_KEY": secret,
+        "PAPERMIND_SEMANTIC_SCHOLAR_KEY": secret,
+        "PAPERMIND_FIRECRAWL_KEY": secret,
     }
     with patch.dict("os.environ", env, clear=False):
         result = runner.invoke(app, ["doctor"])
@@ -157,7 +157,7 @@ def test_doctor_no_kb_shows_hint() -> None:
 
 
 def test_doctor_uninitialized_kb_warning(tmp_path: Path) -> None:
-    """Pointing --kb at a directory without .hydrofound marker shows a warning."""
+    """Pointing --kb at a directory without .papermind marker shows a warning."""
     kb = tmp_path / "not_a_kb"
     kb.mkdir()
     result = runner.invoke(app, ["--kb", str(kb), "doctor"])
@@ -235,9 +235,9 @@ def test_doctor_exits_zero_with_all_missing(tmp_path: Path) -> None:
     import os
 
     keys = [
-        "HYDROFOUND_EXA_KEY",
-        "HYDROFOUND_SEMANTIC_SCHOLAR_KEY",
-        "HYDROFOUND_FIRECRAWL_KEY",
+        "PAPERMIND_EXA_KEY",
+        "PAPERMIND_SEMANTIC_SCHOLAR_KEY",
+        "PAPERMIND_FIRECRAWL_KEY",
     ]
     backup = {k: os.environ.pop(k, None) for k in keys}
     try:

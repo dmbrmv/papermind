@@ -9,8 +9,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import httpx
 import pytest
 
-from hydrofound.discovery.base import PaperResult
-from hydrofound.discovery.downloader import (
+from papermind.discovery.base import PaperResult
+from papermind.discovery.downloader import (
     _is_valid_pdf,
     download_paper,
     load_last_search,
@@ -120,7 +120,7 @@ class TestDownloadPaper:
         mock_client.get = AsyncMock(return_value=mock_response)
 
         with patch(
-            "hydrofound.discovery.downloader.httpx.AsyncClient",
+            "papermind.discovery.downloader.httpx.AsyncClient",
             return_value=mock_client,
         ):
             result = await download_paper(paper, tmp_path)
@@ -145,7 +145,7 @@ class TestDownloadPaper:
         mock_client.get = AsyncMock(return_value=mock_response)
 
         with patch(
-            "hydrofound.discovery.downloader.httpx.AsyncClient",
+            "papermind.discovery.downloader.httpx.AsyncClient",
             return_value=mock_client,
         ):
             result = await download_paper(paper, tmp_path)
@@ -169,7 +169,7 @@ class TestDownloadPaper:
         mock_client.get = AsyncMock(return_value=mock_response)
 
         with patch(
-            "hydrofound.discovery.downloader.httpx.AsyncClient",
+            "papermind.discovery.downloader.httpx.AsyncClient",
             return_value=mock_client,
         ):
             result = await download_paper(paper, output_dir)
@@ -200,7 +200,7 @@ class TestDownloadPaperInvalidContent:
         mock_client.get = AsyncMock(return_value=mock_response)
 
         with patch(
-            "hydrofound.discovery.downloader.httpx.AsyncClient",
+            "papermind.discovery.downloader.httpx.AsyncClient",
             return_value=mock_client,
         ):
             result = await download_paper(paper, tmp_path)
@@ -221,7 +221,7 @@ class TestDownloadPaperInvalidContent:
         mock_client.get = AsyncMock(return_value=mock_response)
 
         with patch(
-            "hydrofound.discovery.downloader.httpx.AsyncClient",
+            "papermind.discovery.downloader.httpx.AsyncClient",
             return_value=mock_client,
         ):
             await download_paper(paper, tmp_path)
@@ -256,7 +256,7 @@ class TestDownloadPaperNetworkErrors:
         mock_client.get = AsyncMock(return_value=mock_response)
 
         with patch(
-            "hydrofound.discovery.downloader.httpx.AsyncClient",
+            "papermind.discovery.downloader.httpx.AsyncClient",
             return_value=mock_client,
         ):
             result = await download_paper(paper, tmp_path)
@@ -273,7 +273,7 @@ class TestDownloadPaperNetworkErrors:
         mock_client.get = AsyncMock(side_effect=httpx.TimeoutException("timed out"))
 
         with patch(
-            "hydrofound.discovery.downloader.httpx.AsyncClient",
+            "papermind.discovery.downloader.httpx.AsyncClient",
             return_value=mock_client,
         ):
             result = await download_paper(paper, tmp_path)
@@ -298,7 +298,7 @@ class TestDownloadPaperNetworkErrors:
         )
 
         with patch(
-            "hydrofound.discovery.downloader.httpx.AsyncClient",
+            "papermind.discovery.downloader.httpx.AsyncClient",
             return_value=mock_client,
         ):
             result = await download_paper(paper, tmp_path)
@@ -334,7 +334,7 @@ class TestDownloadPaperArxiv:
         mock_client.get = fake_get
 
         with patch(
-            "hydrofound.discovery.downloader.httpx.AsyncClient",
+            "papermind.discovery.downloader.httpx.AsyncClient",
             return_value=mock_client,
         ):
             result = await download_paper(paper, tmp_path)
@@ -352,7 +352,7 @@ class TestLoadLastSearch:
     """Load search results from the last_search.json cache."""
 
     def test_loads_results_from_cache(self, tmp_path: Path) -> None:
-        cache_dir = tmp_path / ".hydrofound"
+        cache_dir = tmp_path / ".papermind"
         cache_dir.mkdir()
         payload = {
             "query": "SWAT+",
@@ -391,7 +391,7 @@ class TestLoadLastSearch:
         assert results == []
 
     def test_multiple_results_loaded(self, tmp_path: Path) -> None:
-        cache_dir = tmp_path / ".hydrofound"
+        cache_dir = tmp_path / ".papermind"
         cache_dir.mkdir()
         payload = {
             "query": "hydrology",
@@ -403,7 +403,7 @@ class TestLoadLastSearch:
         assert len(results) == 5
 
     def test_missing_optional_fields_have_defaults(self, tmp_path: Path) -> None:
-        cache_dir = tmp_path / ".hydrofound"
+        cache_dir = tmp_path / ".papermind"
         cache_dir.mkdir()
         payload = {"results": [{"title": "Minimal Paper"}]}
         (cache_dir / "last_search.json").write_text(json.dumps(payload))

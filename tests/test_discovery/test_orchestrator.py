@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import pytest
 
-from hydrofound.discovery.base import PaperResult
-from hydrofound.discovery.orchestrator import _deduplicate, _merge_into, discover_papers
+from papermind.discovery.base import PaperResult
+from papermind.discovery.orchestrator import _deduplicate, _merge_into, discover_papers
 
 # ---------------------------------------------------------------------------
 # Helpers

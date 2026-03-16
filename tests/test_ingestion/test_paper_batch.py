@@ -8,9 +8,9 @@ from unittest.mock import patch
 
 import pytest
 
-from hydrofound.catalog.index import CatalogEntry, CatalogIndex
-from hydrofound.config import HydroFoundConfig
-from hydrofound.ingestion.paper import BatchResult, ingest_papers_batch
+from papermind.catalog.index import CatalogEntry, CatalogIndex
+from papermind.config import PaperMindConfig
+from papermind.ingestion.paper import BatchResult, ingest_papers_batch
 
 # ---------------------------------------------------------------------------
 # Shared helpers
@@ -27,14 +27,14 @@ def _make_pdf(path: Path) -> Path:
     return path
 
 
-def _make_config(tmp_path: Path) -> HydroFoundConfig:
-    return HydroFoundConfig(base_path=tmp_path)
+def _make_config(tmp_path: Path) -> PaperMindConfig:
+    return PaperMindConfig(base_path=tmp_path)
 
 
 def _make_kb(tmp_path: Path) -> Path:
     kb = tmp_path / "kb"
     kb.mkdir()
-    (kb / ".hydrofound").mkdir()
+    (kb / ".papermind").mkdir()
     (kb / "catalog.json").write_text("[]")
     return kb
 
@@ -51,7 +51,7 @@ def _glm_from_store(path, model_name="zai-org/GLM-OCR", dpi=150):
 def _mock_glm():
     """Patch GLM-OCR to use _MD_STORE."""
     return patch(
-        "hydrofound.ingestion.glm_ocr.convert_pdf_glm",
+        "papermind.ingestion.glm_ocr.convert_pdf_glm",
         side_effect=_glm_from_store,
     )
 
@@ -229,7 +229,7 @@ class TestBatchDuplicateSkip:
 
         with (
             _mock_glm(),
-            caplog.at_level(logging.INFO, logger="hydrofound.ingestion.paper"),
+            caplog.at_level(logging.INFO, logger="papermind.ingestion.paper"),
         ):
             ingest_papers_batch(folder, "hydrology", kb, cfg)
 

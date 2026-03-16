@@ -7,7 +7,7 @@ from pathlib import Path
 
 from typer.testing import CliRunner
 
-from hydrofound.cli.main import app
+from papermind.cli.main import app
 
 runner = CliRunner()
 
@@ -44,8 +44,8 @@ def _init_kb_with_entries(tmp_path: Path) -> Path:
     (kb / "catalog.json").write_text(json.dumps(catalog_data, indent=2))
 
     # Regenerate catalog.md to reflect the new entries
-    from hydrofound.catalog.index import CatalogIndex
-    from hydrofound.catalog.render import render_catalog_md
+    from papermind.catalog.index import CatalogIndex
+    from papermind.catalog.render import render_catalog_md
 
     index = CatalogIndex(kb)
     (kb / "catalog.md").write_text(render_catalog_md(index.entries))

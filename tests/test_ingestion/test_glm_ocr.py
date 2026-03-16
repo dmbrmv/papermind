@@ -8,8 +8,8 @@ from unittest.mock import MagicMock, patch
 import pytest
 from typer.testing import CliRunner
 
-from hydrofound.cli.main import app
-from hydrofound.ingestion.glm_ocr import is_available
+from papermind.cli.main import app
+from papermind.ingestion.glm_ocr import is_available
 
 runner = CliRunner()
 
@@ -32,15 +32,15 @@ def test_is_available_returns_bool() -> None:
 
 def test_convert_pdf_dispatches_to_glm(tmp_path: Path) -> None:
     """convert_pdf calls GLM-OCR."""
-    from hydrofound.config import HydroFoundConfig
+    from papermind.config import PaperMindConfig
 
-    config = HydroFoundConfig(base_path=tmp_path)
+    config = PaperMindConfig(base_path=tmp_path)
 
     with patch(
-        "hydrofound.ingestion.glm_ocr.convert_pdf_glm",
+        "papermind.ingestion.glm_ocr.convert_pdf_glm",
         return_value="# GLM output",
     ) as mock_glm:
-        from hydrofound.ingestion.paper import convert_pdf
+        from papermind.ingestion.paper import convert_pdf
 
         result = convert_pdf(tmp_path / "test.pdf", config)
 
@@ -65,10 +65,10 @@ def test_convert_pdf_glm_produces_markdown(tmp_path: Path) -> None:
     fake_image.height = 100
 
     with (
-        patch("hydrofound.ingestion.glm_ocr.is_available", return_value=True),
-        patch("hydrofound.ingestion.glm_ocr._render_pdf_pages") as mock_render,
-        patch("hydrofound.ingestion.glm_ocr._ensure_model") as mock_model,
-        patch("hydrofound.ingestion.glm_ocr._ocr_image") as mock_ocr,
+        patch("papermind.ingestion.glm_ocr.is_available", return_value=True),
+        patch("papermind.ingestion.glm_ocr._render_pdf_pages") as mock_render,
+        patch("papermind.ingestion.glm_ocr._ensure_model") as mock_model,
+        patch("papermind.ingestion.glm_ocr._ocr_image") as mock_ocr,
     ):
         mock_render.return_value = [fake_image, fake_image]  # 2 pages
         mock_model.return_value = (MagicMock(), MagicMock())
@@ -77,7 +77,7 @@ def test_convert_pdf_glm_produces_markdown(tmp_path: Path) -> None:
             "# Page 2\n\nSecond page content.",
         ]
 
-        from hydrofound.ingestion.glm_ocr import convert_pdf_glm
+        from papermind.ingestion.glm_ocr import convert_pdf_glm
 
         result = convert_pdf_glm(pdf, model_name="test-model", dpi=72)
 
@@ -92,10 +92,10 @@ def test_convert_pdf_glm_raises_when_deps_missing(tmp_path: Path) -> None:
     pdf = tmp_path / "test.pdf"
     pdf.write_bytes(b"%PDF-1.4\n" + b"x" * 2000)
 
-    with patch("hydrofound.ingestion.glm_ocr.is_available", return_value=False):
-        from hydrofound.ingestion.glm_ocr import convert_pdf_glm
+    with patch("papermind.ingestion.glm_ocr.is_available", return_value=False):
+        from papermind.ingestion.glm_ocr import convert_pdf_glm
 
-        with pytest.raises(ImportError, match="hydrofound\\[ocr\\]"):
+        with pytest.raises(ImportError, match="papermind\\[ocr\\]"):
             convert_pdf_glm(pdf)
 
 
@@ -128,7 +128,7 @@ def test_cli_paper_ingest_uses_glm_by_default(tmp_path: Path) -> None:
     )
 
     with patch(
-        "hydrofound.ingestion.glm_ocr.convert_pdf_glm",
+        "papermind.ingestion.glm_ocr.convert_pdf_glm",
         return_value=markdown_output,
     ):
         result = runner.invoke(
@@ -146,9 +146,9 @@ def test_cli_paper_ingest_uses_glm_by_default(tmp_path: Path) -> None:
 
 
 def test_config_has_ocr_fields() -> None:
-    """HydroFoundConfig has OCR fields with correct defaults."""
-    from hydrofound.config import HydroFoundConfig
+    """PaperMindConfig has OCR fields with correct defaults."""
+    from papermind.config import PaperMindConfig
 
-    cfg = HydroFoundConfig(base_path=Path("/tmp"))
+    cfg = PaperMindConfig(base_path=Path("/tmp"))
     assert cfg.ocr_model == "zai-org/GLM-OCR"
     assert cfg.ocr_dpi == 150

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from hydrofound.ingestion.common import build_frontmatter, generate_id, slugify
+from papermind.ingestion.common import build_frontmatter, generate_id, slugify
 
 
 def test_slugify_basic() -> None:

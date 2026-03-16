@@ -1,4 +1,4 @@
-"""Tests for hydrofound reindex command."""
+"""Tests for papermind reindex command."""
 
 from __future__ import annotations
 
@@ -8,7 +8,7 @@ from pathlib import Path
 import frontmatter
 from typer.testing import CliRunner
 
-from hydrofound.cli.main import app
+from papermind.cli.main import app
 
 runner = CliRunner()
 
@@ -180,12 +180,12 @@ def test_reindex_skips_files_without_type(tmp_path: Path) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Test 5: skips .hydrofound/ directory
+# Test 5: skips .papermind/ directory
 # ---------------------------------------------------------------------------
 
 
-def test_reindex_skips_hydrofound_directory(tmp_path: Path) -> None:
-    """Files inside .hydrofound/ are never indexed."""
+def test_reindex_skips_papermind_directory(tmp_path: Path) -> None:
+    """Files inside .papermind/ are never indexed."""
     kb = _init_kb(tmp_path)
 
     # Write a valid paper
@@ -195,8 +195,8 @@ def test_reindex_skips_hydrofound_directory(tmp_path: Path) -> None:
         {"id": "real-1", "type": "paper", "title": "Real Paper", "topic": "hydrology"},
     )
 
-    # Manually plant a .md inside .hydrofound/ that looks like an entry
-    internal_md = kb / ".hydrofound" / "internal.md"
+    # Manually plant a .md inside .papermind/ that looks like an entry
+    internal_md = kb / ".papermind" / "internal.md"
     internal_post = frontmatter.Post("# Internal")
     internal_post.metadata = {"id": "internal", "type": "paper", "title": "Internal"}
     internal_md.write_text(frontmatter.dumps(internal_post))

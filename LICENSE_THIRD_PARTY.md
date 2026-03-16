@@ -1,6 +1,6 @@
 # Third-Party Licenses
 
-This document lists all runtime dependencies of HydroFound and their licenses.
+This document lists all runtime dependencies of PaperMind and their licenses.
 
 ---
 
@@ -54,11 +54,11 @@ This document lists all runtime dependencies of HydroFound and their licenses.
 - **License**: Apache-2.0
 - **URL**: https://github.com/microsoft/playwright-python
 - **Used for**: Browser-based ingestion of JavaScript-rendered package documentation
-- **Install**: `pip install "hydrofound[browser]"`
+- **Install**: `pip install "papermind[browser]"`
 
 ---
 
-## Optional OCR Dependencies (hydrofound[ocr])
+## Optional OCR Dependencies (papermind[ocr])
 
 ### transformers
 - **License**: Apache-2.0
@@ -87,7 +87,7 @@ This document lists all runtime dependencies of HydroFound and their licenses.
 - **License**: See upstream project for current license
 - **URL**: https://github.com/simonw/qmd
 - **Used for**: Semantic vector search over the knowledge base
-- **Note**: Optional. HydroFound falls back to grep-based search when qmd is not available.
+- **Note**: Optional. PaperMind falls back to grep-based search when qmd is not available.
 
 ---
 

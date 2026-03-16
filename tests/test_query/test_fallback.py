@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
-from hydrofound.query.fallback import fallback_search
+from papermind.query.fallback import fallback_search
 
 
 @pytest.fixture

@@ -9,8 +9,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from hydrofound.query.fallback import SearchResult
-from hydrofound.query.qmd import is_qmd_available, qmd_reindex, qmd_search
+from papermind.query.fallback import SearchResult
+from papermind.query.qmd import is_qmd_available, qmd_reindex, qmd_search
 
 # ---------------------------------------------------------------------------
 # is_qmd_available
@@ -18,12 +18,12 @@ from hydrofound.query.qmd import is_qmd_available, qmd_reindex, qmd_search
 
 
 def test_is_qmd_available_returns_true_when_found() -> None:
-    with patch("hydrofound.query.qmd.shutil.which", return_value="/usr/bin/qmd"):
+    with patch("papermind.query.qmd.shutil.which", return_value="/usr/bin/qmd"):
         assert is_qmd_available() is True
 
 
 def test_is_qmd_available_returns_false_when_not_found() -> None:
-    with patch("hydrofound.query.qmd.shutil.which", return_value=None):
+    with patch("papermind.query.qmd.shutil.which", return_value=None):
         assert is_qmd_available() is False
 
 
@@ -50,7 +50,7 @@ def test_qmd_search_command_construction(tmp_path: Path) -> None:
     kb.mkdir()
 
     with patch(
-        "hydrofound.query.qmd.subprocess.run",
+        "papermind.query.qmd.subprocess.run",
         return_value=_make_completed_process(stdout="[]"),
     ) as mock_run:
         qmd_search(kb, "soil moisture", limit=5)
@@ -86,7 +86,7 @@ def test_qmd_search_parses_json_output(tmp_path: Path) -> None:
     ]
 
     with patch(
-        "hydrofound.query.qmd.subprocess.run",
+        "papermind.query.qmd.subprocess.run",
         return_value=_make_completed_process(stdout=json.dumps(payload)),
     ):
         results = qmd_search(kb, "runoff")
@@ -114,7 +114,7 @@ def test_qmd_search_strips_line_numbers_from_path(tmp_path: Path) -> None:
     ]
 
     with patch(
-        "hydrofound.query.qmd.subprocess.run",
+        "papermind.query.qmd.subprocess.run",
         return_value=_make_completed_process(stdout=json.dumps(payload)),
     ):
         results = qmd_search(kb, "swat")
@@ -133,7 +133,7 @@ def test_qmd_search_scope_filters_results(tmp_path: Path) -> None:
     ]
 
     with patch(
-        "hydrofound.query.qmd.subprocess.run",
+        "papermind.query.qmd.subprocess.run",
         return_value=_make_completed_process(stdout=json.dumps(payload)),
     ):
         results = qmd_search(kb, "test", scope="papers")
@@ -147,7 +147,7 @@ def test_qmd_search_returns_empty_list_for_empty_json(tmp_path: Path) -> None:
     kb.mkdir()
 
     with patch(
-        "hydrofound.query.qmd.subprocess.run",
+        "papermind.query.qmd.subprocess.run",
         return_value=_make_completed_process(stdout="[]"),
     ):
         results = qmd_search(kb, "anything")
@@ -165,7 +165,7 @@ def test_qmd_search_raises_on_nonzero_exit(tmp_path: Path) -> None:
     kb.mkdir()
 
     with patch(
-        "hydrofound.query.qmd.subprocess.run",
+        "papermind.query.qmd.subprocess.run",
         return_value=_make_completed_process(
             stdout="", returncode=1, stderr="index not found"
         ),
@@ -184,9 +184,9 @@ def test_qmd_reindex_calls_collection_refresh(tmp_path: Path) -> None:
     kb.mkdir()
 
     with (
-        patch("hydrofound.query.qmd.shutil.which", return_value="/usr/bin/qmd"),
+        patch("papermind.query.qmd.shutil.which", return_value="/usr/bin/qmd"),
         patch(
-            "hydrofound.query.qmd.subprocess.run",
+            "papermind.query.qmd.subprocess.run",
             return_value=_make_completed_process(),
         ) as mock_run,
     ):
@@ -202,8 +202,8 @@ def test_qmd_reindex_skips_when_qmd_not_available(tmp_path: Path) -> None:
     kb.mkdir()
 
     with (
-        patch("hydrofound.query.qmd.shutil.which", return_value=None),
-        patch("hydrofound.query.qmd.subprocess.run") as mock_run,
+        patch("papermind.query.qmd.shutil.which", return_value=None),
+        patch("papermind.query.qmd.subprocess.run") as mock_run,
     ):
         qmd_reindex(kb)
 
@@ -221,7 +221,7 @@ def test_qmd_search_passes_cwd(tmp_path: Path) -> None:
     kb.mkdir()
 
     with patch(
-        "hydrofound.query.qmd.subprocess.run",
+        "papermind.query.qmd.subprocess.run",
         return_value=_make_completed_process(stdout="[]"),
     ) as mock_run:
         qmd_search(kb, "runoff")

@@ -1,25 +1,25 @@
-# HydroFound
+# PaperMind
 
 Scientific knowledge base: papers, packages, and codebases → queryable markdown.
 
-HydroFound ingests heterogeneous scientific sources — PDFs, PyPI packages, and source trees — into a portable, plain-text knowledge base. A CLI manages ingestion, search, and discovery. An MCP server exposes the KB as tools to any AI assistant that speaks the Model Context Protocol.
+PaperMind ingests heterogeneous scientific sources — PDFs, PyPI packages, and source trees — into a portable, plain-text knowledge base. A CLI manages ingestion, search, and discovery. An MCP server exposes the KB as tools to any AI assistant that speaks the Model Context Protocol.
 
 ## Install
 
 **Minimum (no PDF or browser support):**
 
 ```bash
-pip install hydrofound
+pip install papermind
 ```
 
 **With PDF ingestion (GLM-OCR — requires GPU):**
 
 ```bash
-pip install "hydrofound[ocr]"
+pip install "papermind[ocr]"
 ```
 
 > **Note:** GLM-OCR requires a recent transformers build with GLM-OCR support.
-> If `pip install "hydrofound[ocr]"` gives a model loading error, install the dev branch:
+> If `pip install "papermind[ocr]"` gives a model loading error, install the dev branch:
 > `pip install "transformers @ git+https://github.com/huggingface/transformers.git"`
 
 **With semantic search (qmd):**
@@ -31,7 +31,7 @@ npm install -g @tobilu/qmd
 **With browser-based package docs:**
 
 ```bash
-pip install "hydrofound[browser]"
+pip install "papermind[browser]"
 playwright install chromium
 ```
 
@@ -41,26 +41,26 @@ playwright install chromium
 
 ```bash
 # 1. Create a knowledge base
-hydrofound --kb ~/kb init
+papermind --kb ~/kb init
 
 # 2. Fetch papers (search + download + OCR + ingest in one step)
-hydrofound --kb ~/kb fetch "SWAT+ calibration machine learning" -n 10 -t swat_ml
+papermind --kb ~/kb fetch "SWAT+ calibration machine learning" -n 10 -t swat_ml
 
 # 3. Ingest a local PDF
-hydrofound --kb ~/kb ingest paper path/to/paper.pdf --topic hydrology
+papermind --kb ~/kb ingest paper path/to/paper.pdf --topic hydrology
 
 # 4. Ingest a Python package's API docs
-hydrofound --kb ~/kb ingest package numpy
+papermind --kb ~/kb ingest package numpy
 
 # 5. Ingest a codebase (Python, Fortran, C, Rust)
-hydrofound --kb ~/kb ingest codebase ~/src/myproject --name myproject
+papermind --kb ~/kb ingest codebase ~/src/myproject --name myproject
 
 # 6. Search
-hydrofound --kb ~/kb search "evapotranspiration calibration"
-hydrofound --kb ~/kb search "SWAT" --topic swat_ml
+papermind --kb ~/kb search "evapotranspiration calibration"
+papermind --kb ~/kb search "SWAT" --topic swat_ml
 
 # 7. Check what's in the KB
-hydrofound --kb ~/kb catalog show
+papermind --kb ~/kb catalog show
 ```
 
 ## CLI Reference
@@ -90,33 +90,33 @@ All commands take `--kb <path>` as a global option. Pass `--offline` to disable 
 
 ```bash
 # Fetch 10 papers on a topic, auto-download and ingest
-hydrofound --kb ~/kb fetch "differentiable hydrology neural ODE" -n 10 -t diff_hydro
+papermind --kb ~/kb fetch "differentiable hydrology neural ODE" -n 10 -t diff_hydro
 
 # Preview what fetch would do (no download/ingest)
-hydrofound --kb ~/kb fetch "SWAT calibration" -n 5 --dry-run
+papermind --kb ~/kb fetch "SWAT calibration" -n 5 --dry-run
 
 # Ingest multiple papers from a directory
-hydrofound --kb ~/kb ingest paper papers/ --topic swat
+papermind --kb ~/kb ingest paper papers/ --topic swat
 
 # Export citations for reference managers
-hydrofound --kb ~/kb export-bibtex > references.bib
+papermind --kb ~/kb export-bibtex > references.bib
 
 # Machine-readable catalog
-hydrofound --kb ~/kb catalog show --json
+papermind --kb ~/kb catalog show --json
 
 # Search with topic filter
-hydrofound --kb ~/kb search "calibration" --topic swat_ml
+papermind --kb ~/kb search "calibration" --topic swat_ml
 
 # Run fully offline (no network calls at all)
-hydrofound --kb ~/kb --offline search "groundwater recharge"
+papermind --kb ~/kb --offline search "groundwater recharge"
 
 # Check tool health
-hydrofound --kb ~/kb doctor
+papermind --kb ~/kb doctor
 ```
 
 ## Paper Discovery
 
-HydroFound searches three academic APIs in parallel:
+PaperMind searches three academic APIs in parallel:
 
 - **[OpenAlex](https://openalex.org/)** — free, no API key, direct PDF URLs for open-access papers
 - **[Semantic Scholar](https://www.semanticscholar.org/)** — structured metadata, citation counts (optional API key for higher rate limits)
@@ -125,7 +125,7 @@ HydroFound searches three academic APIs in parallel:
 
 ## PDF OCR
 
-HydroFound uses [GLM-OCR](https://huggingface.co/zai-org/GLM-OCR) (MIT, 0.9B params, #1 OmniDocBench) for PDF→markdown conversion. Features:
+PaperMind uses [GLM-OCR](https://huggingface.co/zai-org/GLM-OCR) (MIT, 0.9B params, #1 OmniDocBench) for PDF→markdown conversion. Features:
 
 - Runs locally on GPU (RTX 3060+ recommended, ~2GB VRAM)
 - Outputs structured markdown with LaTeX equations
@@ -133,19 +133,19 @@ HydroFound uses [GLM-OCR](https://huggingface.co/zai-org/GLM-OCR) (MIT, 0.9B par
 - Extracts embedded figures as PNG files alongside the markdown
 - Source PDF copied next to markdown for easy comparison
 
-Install with `pip install "hydrofound[ocr]"`. Model downloaded from HuggingFace on first use (~2GB, cached).
+Install with `pip install "papermind[ocr]"`. Model downloaded from HuggingFace on first use (~2GB, cached).
 
 ## MCP Server
 
-HydroFound exposes your KB to AI assistants via the [Model Context Protocol](https://modelcontextprotocol.io/).
+PaperMind exposes your KB to AI assistants via the [Model Context Protocol](https://modelcontextprotocol.io/).
 
 **Claude Code (`.claude/mcp.json`):**
 
 ```json
 {
   "mcpServers": {
-    "hydrofound": {
-      "command": "hydrofound",
+    "papermind": {
+      "command": "papermind",
       "args": ["--kb", "/path/to/kb", "serve"]
     }
   }
@@ -172,7 +172,7 @@ Two search backends:
 
 ## Configuration
 
-Each KB has a `.hydrofound/config.toml`. All keys are optional.
+Each KB has a `.papermind/config.toml`. All keys are optional.
 
 ```toml
 [search]
@@ -199,16 +199,16 @@ offline_only = false
 
 | Variable | Purpose |
 |----------|---------|
-| `HYDROFOUND_EXA_KEY` | Exa search API key |
-| `HYDROFOUND_SEMANTIC_SCHOLAR_KEY` | Semantic Scholar API key |
-| `HYDROFOUND_FIRECRAWL_KEY` | Firecrawl API key |
+| `PAPERMIND_EXA_KEY` | Exa search API key |
+| `PAPERMIND_SEMANTIC_SCHOLAR_KEY` | Semantic Scholar API key |
+| `PAPERMIND_FIRECRAWL_KEY` | Firecrawl API key |
 | `HF_TOKEN` | HuggingFace token (faster model downloads) |
 
 ## Contributing
 
 ```bash
-git clone https://github.com/dmbrmv/hydrofound
-cd hydrofound
+git clone https://github.com/dmbrmv/papermind
+cd papermind
 pip install -e ".[dev]"
 uv run pytest tests/ -v
 uv run ruff check src/

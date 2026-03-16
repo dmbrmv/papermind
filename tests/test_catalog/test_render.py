@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from hydrofound.catalog.render import render_catalog_md
+from papermind.catalog.render import render_catalog_md
 
-from hydrofound.catalog.index import CatalogEntry
+from papermind.catalog.index import CatalogEntry
 
 
 def test_empty_catalog() -> None:

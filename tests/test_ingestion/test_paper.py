@@ -6,9 +6,9 @@ import json
 from pathlib import Path
 from unittest.mock import patch
 
-from hydrofound.catalog.index import CatalogIndex
-from hydrofound.config import HydroFoundConfig
-from hydrofound.ingestion.paper import convert_pdf, extract_metadata, ingest_paper
+from papermind.catalog.index import CatalogIndex
+from papermind.config import PaperMindConfig
+from papermind.ingestion.paper import convert_pdf, extract_metadata, ingest_paper
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -23,15 +23,15 @@ def _make_pdf(path: Path) -> Path:
     return path
 
 
-def _make_config(tmp_path: Path) -> HydroFoundConfig:
-    return HydroFoundConfig(base_path=tmp_path)
+def _make_config(tmp_path: Path) -> PaperMindConfig:
+    return PaperMindConfig(base_path=tmp_path)
 
 
 def _make_kb(tmp_path: Path) -> Path:
     """Initialise a minimal KB with catalog.json."""
     kb = tmp_path / "kb"
     kb.mkdir()
-    (kb / ".hydrofound").mkdir()
+    (kb / ".papermind").mkdir()
     (kb / "catalog.json").write_text("[]")
     return kb
 
@@ -39,7 +39,7 @@ def _make_kb(tmp_path: Path) -> Path:
 def _mock_convert(md_content: str = "# Title\n"):
     """Return a patch context manager that mocks convert_pdf_glm."""
     return patch(
-        "hydrofound.ingestion.glm_ocr.convert_pdf_glm",
+        "papermind.ingestion.glm_ocr.convert_pdf_glm",
         return_value=md_content,
     )
 
@@ -229,7 +229,7 @@ class TestIngestPaperDuplicateDoi:
         pdf = _make_pdf(tmp_path / "paper.pdf")
         cfg = _make_config(tmp_path)
 
-        from hydrofound.catalog.index import CatalogEntry
+        from papermind.catalog.index import CatalogEntry
 
         catalog = CatalogIndex(kb)
         catalog.add(
@@ -251,7 +251,7 @@ class TestIngestPaperDuplicateDoi:
         pdf = _make_pdf(tmp_path / "paper.pdf")
         cfg = _make_config(tmp_path)
 
-        from hydrofound.catalog.index import CatalogEntry
+        from papermind.catalog.index import CatalogEntry
 
         catalog = CatalogIndex(kb)
         catalog.add(
@@ -275,7 +275,7 @@ class TestIngestPaperDuplicateDoi:
         pdf = _make_pdf(tmp_path / "paper.pdf")
         cfg = _make_config(tmp_path)
 
-        from hydrofound.catalog.index import CatalogEntry
+        from papermind.catalog.index import CatalogEntry
 
         catalog = CatalogIndex(kb)
         catalog.add(
@@ -404,7 +404,7 @@ class TestTitleSimilarityDedup:
 
     def test_title_similarity_dedup(self, tmp_path: Path) -> None:
         """Ingesting a paper with a >90% title match returns None (near-dup rejected)."""
-        from hydrofound.catalog.index import CatalogEntry
+        from papermind.catalog.index import CatalogEntry
 
         kb = _make_kb(tmp_path)
         cfg = _make_config(tmp_path)
@@ -433,7 +433,7 @@ class TestTitleSimilarityDedup:
 
     def test_title_similarity_distinct_title_ingested(self, tmp_path: Path) -> None:
         """A paper with a sufficiently different title is ingested normally."""
-        from hydrofound.catalog.index import CatalogEntry
+        from papermind.catalog.index import CatalogEntry
 
         kb = _make_kb(tmp_path)
         cfg = _make_config(tmp_path)

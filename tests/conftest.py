@@ -1,1 +1,1 @@
-"""Shared pytest fixtures for HydroFound tests."""
+"""Shared pytest fixtures for PaperMind tests."""

@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
-from hydrofound.ingestion.codebase import walk_codebase
+from papermind.ingestion.codebase import walk_codebase
 
 
 @pytest.fixture

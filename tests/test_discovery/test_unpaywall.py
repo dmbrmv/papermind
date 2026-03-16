@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from hydrofound.discovery.unpaywall import resolve_pdf_url
+from papermind.discovery.unpaywall import resolve_pdf_url
 
 
 def _run(coro):
@@ -32,7 +32,7 @@ class TestResolvePdfUrl:
         async def mock_get(url, **kwargs):
             return _mock_response(200, data)
 
-        with patch("hydrofound.discovery.unpaywall.httpx.AsyncClient") as mock_cls:
+        with patch("papermind.discovery.unpaywall.httpx.AsyncClient") as mock_cls:
             client = AsyncMock()
             client.get = mock_get
             client.__aenter__ = AsyncMock(return_value=client)
@@ -56,7 +56,7 @@ class TestResolvePdfUrl:
         async def mock_get(url, **kwargs):
             return _mock_response(200, data)
 
-        with patch("hydrofound.discovery.unpaywall.httpx.AsyncClient") as mock_cls:
+        with patch("papermind.discovery.unpaywall.httpx.AsyncClient") as mock_cls:
             client = AsyncMock()
             client.get = mock_get
             client.__aenter__ = AsyncMock(return_value=client)
@@ -77,7 +77,7 @@ class TestResolvePdfUrl:
         async def mock_get(url, **kwargs):
             return _mock_response(200, data)
 
-        with patch("hydrofound.discovery.unpaywall.httpx.AsyncClient") as mock_cls:
+        with patch("papermind.discovery.unpaywall.httpx.AsyncClient") as mock_cls:
             client = AsyncMock()
             client.get = mock_get
             client.__aenter__ = AsyncMock(return_value=client)
@@ -92,7 +92,7 @@ class TestResolvePdfUrl:
         async def mock_get(url, **kwargs):
             return _mock_response(404)
 
-        with patch("hydrofound.discovery.unpaywall.httpx.AsyncClient") as mock_cls:
+        with patch("papermind.discovery.unpaywall.httpx.AsyncClient") as mock_cls:
             client = AsyncMock()
             client.get = mock_get
             client.__aenter__ = AsyncMock(return_value=client)
@@ -110,7 +110,7 @@ class TestResolvePdfUrl:
     def test_returns_none_on_network_error(self) -> None:
         import httpx
 
-        with patch("hydrofound.discovery.unpaywall.httpx.AsyncClient") as mock_cls:
+        with patch("papermind.discovery.unpaywall.httpx.AsyncClient") as mock_cls:
             client = AsyncMock()
             client.get = AsyncMock(side_effect=httpx.RequestError("timeout"))
             client.__aenter__ = AsyncMock(return_value=client)

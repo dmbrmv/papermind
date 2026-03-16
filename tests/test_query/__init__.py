@@ -1,1 +1,1 @@
-"""Tests for hydrofound.query package."""
+"""Tests for papermind.query package."""

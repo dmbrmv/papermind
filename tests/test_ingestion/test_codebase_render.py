@@ -6,8 +6,8 @@ from pathlib import Path
 
 import pytest
 
-from hydrofound.ingestion.codebase import CodebaseMap, SignatureInfo
-from hydrofound.ingestion.codebase_render import render_codebase
+from papermind.ingestion.codebase import CodebaseMap, SignatureInfo
+from papermind.ingestion.codebase_render import render_codebase
 
 
 @pytest.fixture

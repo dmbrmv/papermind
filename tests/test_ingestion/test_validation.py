@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
-from hydrofound.ingestion.validation import ValidationError, validate_pdf
+from papermind.ingestion.validation import ValidationError, validate_pdf
 
 
 def test_valid_pdf(tmp_path: Path) -> None:

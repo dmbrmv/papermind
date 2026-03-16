@@ -3,7 +3,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "hydrofound"
+name = "papermind"
 version = "1.1.0"
 description = "Scientific knowledge base — papers, packages, codebases → queryable markdown"
 readme = "README.md"
@@ -26,7 +26,7 @@ browser = ["playwright>=1.40"]
 dev = ["pytest>=8.0", "pytest-asyncio>=0.23", "ruff>=0.4"]
 
 [project.scripts]
-hydrofound = "hydrofound.cli.main:app"
+papermind = "papermind.cli.main:app"
 
 [tool.ruff]
 line-length = 88

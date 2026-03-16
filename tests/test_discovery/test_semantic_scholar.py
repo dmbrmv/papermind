@@ -7,8 +7,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import httpx
 import pytest
 
-from hydrofound.discovery.base import PaperResult
-from hydrofound.discovery.semantic_scholar import _BASE_URL, SemanticScholarProvider
+from papermind.discovery.base import PaperResult
+from papermind.discovery.semantic_scholar import _BASE_URL, SemanticScholarProvider
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -66,7 +66,7 @@ def _patch_client(response: MagicMock) -> patch:
     mock_client.__aenter__ = AsyncMock(return_value=mock_client)
     mock_client.__aexit__ = AsyncMock(return_value=False)
     return patch(
-        "hydrofound.discovery.semantic_scholar.httpx.AsyncClient",
+        "papermind.discovery.semantic_scholar.httpx.AsyncClient",
         return_value=mock_client,
     )
 
@@ -344,7 +344,7 @@ class TestErrorHandling:
         mock_client.__aexit__ = AsyncMock(return_value=False)
 
         with patch(
-            "hydrofound.discovery.semantic_scholar.httpx.AsyncClient",
+            "papermind.discovery.semantic_scholar.httpx.AsyncClient",
             return_value=mock_client,
         ):
             provider = SemanticScholarProvider()

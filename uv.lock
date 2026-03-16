@@ -448,60 +448,6 @@ wheels = [
 ]
 
 [[package]]
-name = "hydrofound"
-version = "0.1.0"
-source = { editable = "." }
-dependencies = [
-    { name = "griffe" },
-    { name = "httpx" },
-    { name = "jinja2" },
-    { name = "mcp" },
-    { name = "python-frontmatter" },
-    { name = "pyyaml" },
-    { name = "rich" },
-    { name = "typer" },
-]
-
-[package.optional-dependencies]
-browser = [
-    { name = "playwright" },
-]
-dev = [
-    { name = "pytest" },
-    { name = "pytest-asyncio" },
-    { name = "ruff" },
-]
-ocr = [
-    { name = "accelerate" },
-    { name = "pymupdf" },
-    { name = "torch" },
-    { name = "torchvision" },
-    { name = "transformers" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "accelerate", marker = "extra == 'ocr'", specifier = ">=1.0" },
-    { name = "griffe", specifier = ">=1.0" },
-    { name = "httpx", specifier = ">=0.27" },
-    { name = "jinja2", specifier = ">=3.1" },
-    { name = "mcp", specifier = ">=1.0" },
-    { name = "playwright", marker = "extra == 'browser'", specifier = ">=1.40" },
-    { name = "pymupdf", marker = "extra == 'ocr'", specifier = ">=1.24" },
-    { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.0" },
-    { name = "pytest-asyncio", marker = "extra == 'dev'", specifier = ">=0.23" },
-    { name = "python-frontmatter", specifier = ">=1.0" },
-    { name = "pyyaml", specifier = ">=6.0" },
-    { name = "rich", specifier = ">=13.0" },
-    { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.4" },
-    { name = "torch", marker = "extra == 'ocr'", specifier = ">=2.0" },
-    { name = "torchvision", marker = "extra == 'ocr'", specifier = ">=0.20" },
-    { name = "transformers", marker = "extra == 'ocr'", specifier = ">=4.48" },
-    { name = "typer", specifier = ">=0.9" },
-]
-provides-extras = ["ocr", "browser", "dev"]
-
-[[package]]
 name = "idna"
 version = "3.11"
 source = { registry = "https://pypi.org/simple" }
@@ -917,6 +863,60 @@ sdist = { url = "https://files.pythonhosted.org/packages/65/ee/299d360cdc32edc7d
 wheels = [
     { url = "https://files.pythonhosted.org/packages/b7/b9/c538f279a4e237a006a2c98387d081e9eb060d203d8ed34467cc0f0b9b53/packaging-26.0-py3-none-any.whl", hash = "sha256:b36f1fef9334a5588b4166f8bcd26a14e521f2b55e6b9de3aaa80d3ff7a37529", size = 74366, upload-time = "2026-01-21T20:50:37.788Z" },
 ]
+
+[[package]]
+name = "papermind"
+version = "1.1.0"
+source = { editable = "." }
+dependencies = [
+    { name = "griffe" },
+    { name = "httpx" },
+    { name = "jinja2" },
+    { name = "mcp" },
+    { name = "python-frontmatter" },
+    { name = "pyyaml" },
+    { name = "rich" },
+    { name = "typer" },
+]
+
+[package.optional-dependencies]
+browser = [
+    { name = "playwright" },
+]
+dev = [
+    { name = "pytest" },
+    { name = "pytest-asyncio" },
+    { name = "ruff" },
+]
+ocr = [
+    { name = "accelerate" },
+    { name = "pymupdf" },
+    { name = "torch" },
+    { name = "torchvision" },
+    { name = "transformers" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "accelerate", marker = "extra == 'ocr'", specifier = ">=1.0" },
+    { name = "griffe", specifier = ">=1.0" },
+    { name = "httpx", specifier = ">=0.27" },
+    { name = "jinja2", specifier = ">=3.1" },
+    { name = "mcp", specifier = ">=1.0" },
+    { name = "playwright", marker = "extra == 'browser'", specifier = ">=1.40" },
+    { name = "pymupdf", marker = "extra == 'ocr'", specifier = ">=1.24" },
+    { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.0" },
+    { name = "pytest-asyncio", marker = "extra == 'dev'", specifier = ">=0.23" },
+    { name = "python-frontmatter", specifier = ">=1.0" },
+    { name = "pyyaml", specifier = ">=6.0" },
+    { name = "rich", specifier = ">=13.0" },
+    { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.4" },
+    { name = "torch", marker = "extra == 'ocr'", specifier = ">=2.0" },
+    { name = "torchvision", marker = "extra == 'ocr'", specifier = ">=0.20" },
+    { name = "transformers", marker = "extra == 'ocr'", specifier = ">=4.48" },
+    { name = "typer", specifier = ">=0.9" },
+]
+provides-extras = ["ocr", "browser", "dev"]
 
 [[package]]
 name = "pillow"

@@ -1,4 +1,4 @@
-"""Tests for the HydroFound MCP server handlers."""
+"""Tests for the PaperMind MCP server handlers."""
 
 from __future__ import annotations
 
@@ -9,7 +9,7 @@ from unittest.mock import patch
 import pytest
 from mcp.types import TextContent
 
-from hydrofound.mcp_server import (
+from papermind.mcp_server import (
     _handle_catalog_stats,
     _handle_get,
     _handle_list_topics,
@@ -98,7 +98,7 @@ async def test_list_tools_query_has_required_field(kb_root: Path) -> None:
 @pytest.mark.asyncio
 async def test_handle_query_returns_results(kb_root: Path) -> None:
     """_handle_query should return formatted results for a matching query."""
-    from hydrofound.query.fallback import SearchResult
+    from papermind.query.fallback import SearchResult
 
     mock_results = [
         SearchResult(
@@ -109,8 +109,8 @@ async def test_handle_query_returns_results(kb_root: Path) -> None:
         )
     ]
     with (
-        patch("hydrofound.query.qmd.is_qmd_available", return_value=False),
-        patch("hydrofound.query.fallback.fallback_search", return_value=mock_results),
+        patch("papermind.query.qmd.is_qmd_available", return_value=False),
+        patch("papermind.query.fallback.fallback_search", return_value=mock_results),
     ):
         response = await _handle_query(kb_root, {"q": "rivers", "limit": 10})
 
@@ -124,8 +124,8 @@ async def test_handle_query_returns_results(kb_root: Path) -> None:
 async def test_handle_query_no_results(kb_root: Path) -> None:
     """_handle_query should return a 'No results found.' message when empty."""
     with (
-        patch("hydrofound.query.qmd.is_qmd_available", return_value=False),
-        patch("hydrofound.query.fallback.fallback_search", return_value=[]),
+        patch("papermind.query.qmd.is_qmd_available", return_value=False),
+        patch("papermind.query.fallback.fallback_search", return_value=[]),
     ):
         response = await _handle_query(kb_root, {"q": "xyzzy"})
 
@@ -210,7 +210,7 @@ def test_handle_multi_get_path_traversal_rejected(kb_root: Path) -> None:
 def test_handle_catalog_stats_returns_json(kb_root: Path) -> None:
     """_handle_catalog_stats should return valid JSON stats."""
     mock_stats = {"total": 5, "topics": {"hydrology": 3, "ml": 2}}
-    with patch("hydrofound.catalog.index.CatalogIndex.stats", return_value=mock_stats):
+    with patch("papermind.catalog.index.CatalogIndex.stats", return_value=mock_stats):
         response = _handle_catalog_stats(kb_root)
 
     assert len(response) == 1
@@ -227,7 +227,7 @@ def test_handle_catalog_stats_returns_json(kb_root: Path) -> None:
 def test_handle_list_topics_returns_list(kb_root: Path) -> None:
     """_handle_list_topics should return a JSON array of topic names."""
     mock_stats = {"topics": {"hydrology": 3, "ml": 2}}
-    with patch("hydrofound.catalog.index.CatalogIndex.stats", return_value=mock_stats):
+    with patch("papermind.catalog.index.CatalogIndex.stats", return_value=mock_stats):
         response = _handle_list_topics(kb_root)
 
     assert len(response) == 1
@@ -238,7 +238,7 @@ def test_handle_list_topics_returns_list(kb_root: Path) -> None:
 
 def test_handle_list_topics_empty_catalog(kb_root: Path) -> None:
     """_handle_list_topics should return an empty list when no topics exist."""
-    with patch("hydrofound.catalog.index.CatalogIndex.stats", return_value={}):
+    with patch("papermind.catalog.index.CatalogIndex.stats", return_value={}):
         response = _handle_list_topics(kb_root)
 
     assert json.loads(response[0].text) == []
