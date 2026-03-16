@@ -387,8 +387,8 @@ class TestNoReindexFlag:
         ):
             ingest_paper(pdf, "general", kb, cfg, no_reindex=False)
 
-        # One call: qmd reindex
+        # One call: qmd collection refresh
         assert mock_run.call_count == 1
         qmd_cmd = mock_run.call_args[0][0]
-        assert "qmd" in qmd_cmd[0]
-        assert "reindex" in qmd_cmd
+        assert qmd_cmd[0] == "qmd"
+        assert "collection" in qmd_cmd

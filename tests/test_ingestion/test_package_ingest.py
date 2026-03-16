@@ -77,7 +77,7 @@ def test_catalog_updated_after_ingest(
 
 def test_no_reindex_flag_skips_qmd(kb: Path, offline_config: HydroFoundConfig) -> None:
     """When no_reindex=True, qmd reindex is never called."""
-    with patch("hydrofound.cli.ingest._try_qmd_reindex") as mock_reindex:
+    with patch("hydrofound.query.qmd.qmd_reindex") as mock_reindex:
         result = runner.invoke(
             app,
             [
@@ -97,7 +97,7 @@ def test_no_reindex_still_writes_files(
     kb: Path, offline_config: HydroFoundConfig
 ) -> None:
     """--no-reindex does not prevent file writing."""
-    with patch("hydrofound.cli.ingest._try_qmd_reindex"):
+    with patch("hydrofound.query.qmd.qmd_reindex"):
         result = runner.invoke(
             app,
             [

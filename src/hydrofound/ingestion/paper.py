@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import logging
 import re
-import subprocess
 from pathlib import Path
 
 from hydrofound.catalog.index import CatalogEntry, CatalogIndex
@@ -84,7 +83,7 @@ def extract_metadata(markdown: str) -> dict:
                 metadata["title"] = line[:200]
                 break
 
-    doi_match = re.search(r"(10\.\d{4,9}/[^\s]+)", markdown)
+    doi_match = re.search(r"(10\.\d{4,9}/[-._;()/:A-Za-z0-9]+)", markdown)
     if doi_match:
         metadata["doi"] = doi_match.group(1).rstrip(".,;)")
 
@@ -194,7 +193,9 @@ def ingest_paper(
     (kb_path / "catalog.md").write_text(render_catalog_md(catalog.entries))
 
     if not no_reindex:
-        _try_qmd_reindex(kb_path, config)
+        from hydrofound.query.qmd import qmd_reindex
+
+        qmd_reindex(kb_path)
 
     return entry
 
@@ -274,30 +275,9 @@ def ingest_papers_batch(
 
     # Single reindex at end of batch (only if anything was actually ingested).
     if result.ingested > 0:
-        _try_qmd_reindex(kb_path, config)
+        from hydrofound.query.qmd import qmd_reindex
+
+        qmd_reindex(kb_path)
 
     logger.info("Batch complete: %s", result)
     return result
-
-
-def _try_qmd_reindex(kb_path: Path, config: HydroFoundConfig) -> None:
-    """Attempt to run qmd reindex; skip silently if qmd is not installed.
-
-    Args:
-        kb_path: Knowledge base root.
-        config: HydroFound configuration (provides qmd_path).
-    """
-    import shutil
-
-    qmd = config.qmd_path
-    if shutil.which(qmd) is None:
-        return
-
-    try:
-        subprocess.run(
-            [qmd, "reindex", str(kb_path)],
-            check=False,
-            capture_output=True,
-        )
-    except OSError:
-        pass

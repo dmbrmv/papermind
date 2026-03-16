@@ -98,7 +98,9 @@ def ingest_codebase(
     console.print(f"  Source files: {len(cb.file_tree)}")
 
     if not no_reindex:
-        _try_qmd_reindex(kb_path)
+        from hydrofound.query.qmd import qmd_reindex
+
+        qmd_reindex(kb_path)
 
 
 @ingest_app.command(name="paper")
@@ -233,22 +235,6 @@ def ingest_package_cmd(
         console.print(f"  Docs:  {entry.source_url}")
 
     if not no_reindex:
-        _try_qmd_reindex(kb_path)
+        from hydrofound.query.qmd import qmd_reindex
 
-
-def _try_qmd_reindex(kb_path: Path) -> None:
-    """Attempt to run qmd reindex; skip silently if qmd is not installed."""
-    import shutil
-    import subprocess
-
-    if shutil.which("qmd") is None:
-        return
-
-    try:
-        subprocess.run(
-            ["qmd", "reindex", str(kb_path)],
-            check=False,
-            capture_output=True,
-        )
-    except OSError:
-        pass
+        qmd_reindex(kb_path)

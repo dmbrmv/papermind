@@ -195,8 +195,12 @@ def ingest_package(
             docs_url = resolved_url
             docs_md = _fetch_docs(resolved_url, config)
 
-    # 3. Write files
+    # 3. Write files (clean old files on re-ingestion)
     pkg_dir = kb_path / "packages" / package_name
+    if pkg_dir.exists():
+        import shutil
+
+        shutil.rmtree(pkg_dir)
     pkg_dir.mkdir(parents=True, exist_ok=True)
 
     (pkg_dir / "api.md").write_text(api_md)

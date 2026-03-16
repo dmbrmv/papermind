@@ -91,16 +91,30 @@ def remove_command(
         console.print(f"[red]Entry not found:[/red] {entry_id}")
         raise typer.Exit(code=1)
 
-    # Delete the primary file
-    primary_file = kb_path / entry.path
-    if primary_file.exists():
-        primary_file.unlink()
+    # Collect all files to delete (with path traversal protection)
+    to_delete: list[Path] = []
+    for rel_path in [entry.path, *entry.files]:
+        target = (kb_path / rel_path).resolve()
+        if not str(target).startswith(str(kb_path.resolve())):
+            console.print(f"[red]Path traversal blocked:[/red] {rel_path}")
+            raise typer.Exit(code=1)
+        to_delete.append(target)
 
-    # Delete any additional files listed on the entry
-    for rel_path in entry.files:
-        extra_file = kb_path / rel_path
-        if extra_file.exists():
-            extra_file.unlink()
+    # Delete files
+    for target in to_delete:
+        if target.exists():
+            target.unlink()
+
+    # Clean empty parent directories
+    dirs_seen: set[Path] = set()
+    for target in to_delete:
+        dirs_seen.add(target.parent)
+    for d in dirs_seen:
+        try:
+            if d.exists() and d != kb_path.resolve() and not any(d.iterdir()):
+                d.rmdir()
+        except OSError:
+            pass
 
     # Remove from catalog index and regenerate catalog.md
     index.remove(entry_id)
