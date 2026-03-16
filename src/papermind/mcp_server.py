@@ -167,6 +167,28 @@ def create_server(kb_path: Path) -> Server:
                     "required": ["query"],
                 },
             ),
+            Tool(
+                name="watch_file",
+                description=(
+                    "Surface relevant KB entries for a source code file. "
+                    "Extracts concepts (imports, functions, docstrings) "
+                    "and searches the KB. ~50 tokens per result."
+                ),
+                inputSchema={
+                    "type": "object",
+                    "properties": {
+                        "file_path": {
+                            "type": "string",
+                            "description": "Absolute path to source file",
+                        },
+                        "limit": {
+                            "type": "integer",
+                            "default": 5,
+                        },
+                    },
+                    "required": ["file_path"],
+                },
+            ),
         ]
 
     @server.call_tool()
@@ -188,6 +210,8 @@ def create_server(kb_path: Path) -> Server:
             return _handle_list_topics(kb_path)
         elif name == "discover_papers":
             return await _handle_discover(kb_path, arguments)
+        elif name == "watch_file":
+            return _handle_watch(kb_path, arguments)
         raise ValueError(f"Unknown tool: {name}")
 
     return server
@@ -391,6 +415,30 @@ async def _handle_discover(kb_path: Path, args: dict) -> list[TextContent]:
 # ---------------------------------------------------------------------------
 # Shared search helper
 # ---------------------------------------------------------------------------
+
+
+def _handle_watch(kb_path: Path, args: dict) -> list[TextContent]:
+    """Surface relevant KB entries for a source file."""
+    from papermind.watch import format_watch_output, watch_file
+
+    file_path = Path(args["file_path"])
+    limit = args.get("limit", 5)
+
+    if not file_path.exists():
+        return [
+            TextContent(
+                type="text",
+                text=f"File not found: {file_path}",
+            )
+        ]
+
+    results = watch_file(file_path, kb_path, limit=limit)
+    return [
+        TextContent(
+            type="text",
+            text=format_watch_output(file_path.name, results),
+        )
+    ]
 
 
 def _search(kb_path: Path, args: dict) -> list:

@@ -77,6 +77,10 @@ app.command(name="crawl")(crawl_cmd)
 app.command(name="migrate")(migrate_cmd)
 app.add_typer(tags_app, name="tags")
 
+from papermind.cli.watch import watch_cmd  # noqa: E402
+
+app.command(name="watch")(watch_cmd)
+
 
 @app.command(name="reindex")
 def reindex_command(ctx: typer.Context) -> None:
