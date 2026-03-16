@@ -181,20 +181,32 @@ def fetch_command(
         if dry_run:
             from rich.table import Table
 
+            from papermind.discovery.orchestrator import _score_result
+
             table = Table(
                 title="Discovery Results (dry-run)",
                 show_header=True,
                 header_style="bold",
+                expand=True,
             )
-            table.add_column("Title", style="cyan", max_width=60)
-            table.add_column("DOI", style="dim", max_width=30)
-            table.add_column("PDF URL", justify="center")
-            for r in results:
-                pdf_available = "[green]yes[/green]" if r.pdf_url else "[red]no[/red]"
+            table.add_column("#", style="dim", no_wrap=True)
+            table.add_column("Title", style="cyan", ratio=3)
+            table.add_column("Abstract", style="dim", ratio=2)
+            table.add_column("Cites", justify="right", no_wrap=True)
+            table.add_column("PDF", justify="center", no_wrap=True)
+            table.add_column("Score", justify="right", no_wrap=True)
+            for idx, r in enumerate(results, 1):
+                pdf = "[green]yes[/green]" if r.pdf_url else "[red]no[/red]"
+                abstract = (
+                    (r.abstract[:80] + "...") if len(r.abstract) > 80 else r.abstract
+                )
                 table.add_row(
+                    str(idx),
                     r.title[:60] if r.title else "(no title)",
-                    r.doi or "",
-                    pdf_available,
+                    abstract or "[dim]—[/dim]",
+                    str(r.citation_count) if r.citation_count else "—",
+                    pdf,
+                    str(_score_result(r)),
                 )
             console.print(table)
             raise typer.Exit(code=0)
