@@ -53,6 +53,12 @@ def tags_refresh(
             "(dry-run, no changes written)[/dim]"
         )
     else:
+        # Rebuild catalog so tags appear in catalog.json
+        from papermind.catalog.index import CatalogIndex
+        from papermind.catalog.render import render_catalog_md
+
+        catalog = CatalogIndex.rebuild(kb)
+        (kb / "catalog.md").write_text(render_catalog_md(catalog.entries))
         console.print(f"\n[bold]{updated} paper(s) tagged[/bold]")
 
 
