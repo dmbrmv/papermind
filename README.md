@@ -2,11 +2,17 @@
 
 Scientific knowledge base: papers, packages, and codebases → queryable markdown.
 
+[![PyPI](https://img.shields.io/pypi/v/papermind)](https://pypi.org/project/papermind/)
+[![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue)](https://www.python.org/)
+[![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
+
 PaperMind ingests heterogeneous scientific sources — PDFs, PyPI packages, and source trees — into a portable, plain-text knowledge base. A CLI manages ingestion, search, and discovery. An MCP server exposes the KB as tools to any AI assistant that speaks the Model Context Protocol.
 
-## Install
+---
 
-**Minimum (no PDF or browser support):**
+## Installation
+
+**Minimum (no PDF support):**
 
 ```bash
 pip install papermind
@@ -18,14 +24,14 @@ pip install papermind
 pip install "papermind[ocr]"
 ```
 
-> **Note:** GLM-OCR requires a recent transformers build with GLM-OCR support.
-> If `pip install "papermind[ocr]"` gives a model loading error, install the dev branch:
+> GLM-OCR requires a recent transformers build. If you get a model loading error:
 > `pip install "transformers @ git+https://github.com/huggingface/transformers.git"`
 
 **With semantic search (qmd):**
 
 ```bash
 npm install -g @tobilu/qmd
+qmd collection add ~/kb --name my-kb
 ```
 
 **With browser-based package docs:**
@@ -35,105 +41,103 @@ pip install "papermind[browser]"
 playwright install chromium
 ```
 
-**Requirements:** Python 3.11+, GPU recommended for PDF ingestion
+---
 
 ## Quick Start
 
 ```bash
-# 1. Create a knowledge base
+# Initialize a knowledge base
 papermind --kb ~/kb init
 
-# 2. Fetch papers (search + download + OCR + ingest in one step)
+# Fetch papers: search + download + OCR + ingest in one step
 papermind --kb ~/kb fetch "SWAT+ calibration machine learning" -n 10 -t swat_ml
 
-# 3. Ingest a local PDF
+# Search
+papermind --kb ~/kb search "evapotranspiration calibration"
+
+# Ingest a local PDF
 papermind --kb ~/kb ingest paper path/to/paper.pdf --topic hydrology
 
-# 4. Ingest a Python package's API docs
+# Ingest a Python package's API docs
 papermind --kb ~/kb ingest package numpy
 
-# 5. Ingest a codebase (Python, Fortran, C, Rust)
+# Ingest a source tree
 papermind --kb ~/kb ingest codebase ~/src/myproject --name myproject
 
-# 6. Search
-papermind --kb ~/kb search "evapotranspiration calibration"
-papermind --kb ~/kb search "SWAT" --topic swat_ml
-
-# 7. Check what's in the KB
+# Check what's in the KB
 papermind --kb ~/kb catalog show
 ```
 
-## CLI Reference
+---
 
-All commands take `--kb <path>` as a global option. Pass `--offline` to disable all network access.
+## Command Reference
+
+All commands accept `--kb <path>` as a global option. Pass `--offline` to disable all network access.
+
+### Top-level commands
 
 | Command | Description |
 |---------|-------------|
 | `init` | Initialize a new knowledge base directory |
-| `fetch <query>` | Search + download + OCR + ingest papers in one step |
-| `ingest paper <path>` | Add a paper (PDF) via GLM-OCR |
-| `ingest package <name>` | Extract a PyPI package's API and docs |
-| `ingest codebase <path>` | Walk a source tree (Python, Fortran, C) |
+| `fetch <query>` | Search, download, and ingest papers in one step |
 | `search <query>` | Search the KB (semantic via qmd, or grep fallback) |
-| `catalog show` | List all KB entries (`--json` for machine-readable) |
-| `catalog stats` | Summary statistics by type and topic |
-| `remove <id>` | Remove an entry from the KB |
 | `discover <query>` | Find papers via OpenAlex / Semantic Scholar / Exa |
-| `download <url\|doi>` | Download a paper PDF |
+| `download <url\|doi>` | Download a paper PDF by URL or DOI |
+| `crawl <id>` | Follow citation DOIs from a seed paper to build a connected KB |
+| `related <id>` | Show papers in the KB connected by citations |
+| `backfill` | Enrich existing papers with citation data from Semantic Scholar |
+| `context-pack` | Generate a compressed topic briefing for agent context injection |
+| `watch <file>` | Surface relevant KB entries for a source code file |
 | `export-bibtex` | Export paper citations as BibTeX |
+| `migrate` | Convert legacy flat layout to per-paper subdirectories |
+| `reindex` | Rebuild `catalog.json` and `catalog.md` from the filesystem |
+| `remove <id>` | Remove an entry and its files from the KB |
 | `doctor` | Check installed dependencies and tool availability |
-| `reindex` | Rebuild `catalog.json` and `catalog.md` from filesystem |
 | `serve` | Start the MCP server (stdio transport) |
 | `version` | Print version |
+
+### Sub-commands
+
+| Command | Description |
+|---------|-------------|
+| `ingest paper <path>` | Ingest a PDF (or folder of PDFs) via GLM-OCR |
+| `ingest package <name>` | Extract a PyPI package's API and documentation |
+| `ingest codebase <path>` | Walk a source tree (Python, Fortran, C, Rust) |
+| `catalog show` | List all KB entries (`--json` for machine-readable, `--topic` to filter) |
+| `catalog stats` | Summary statistics by type and topic |
+| `audit stale` | List entries not verified recently |
+| `audit verify <id>` | Mark a paper as verified today |
+| `audit check-versions` | Check if indexed packages have newer versions on PyPI |
+| `equations show <id>` | Show equations extracted from a paper |
+| `equations backfill` | Extract equations for all papers and store in frontmatter |
+| `tags refresh` | Recompute TF-IDF tags for all papers |
 
 ### Examples
 
 ```bash
-# Fetch 10 papers on a topic, auto-download and ingest
-papermind --kb ~/kb fetch "differentiable hydrology neural ODE" -n 10 -t diff_hydro
+# Fetch until 10 new papers are ingested (multi-round, dedup-aware)
+papermind --kb ~/kb fetch "differentiable hydrology neural ODE" --target 10 -t diff_hydro
 
-# Preview what fetch would do (no download/ingest)
+# Preview discovery without downloading
 papermind --kb ~/kb fetch "SWAT calibration" -n 5 --dry-run
 
-# Ingest multiple papers from a directory
-papermind --kb ~/kb ingest paper papers/ --topic swat
+# Crawl citation graph from a seed paper (outward + inward)
+papermind --kb ~/kb crawl my-paper-id --direction both --depth 2
 
-# Export citations for reference managers
-papermind --kb ~/kb export-bibtex > references.bib
+# Inject a topic briefing into agent context
+papermind --kb ~/kb context-pack --topic swat_ml --max-tokens 2000
 
-# Machine-readable catalog
-papermind --kb ~/kb catalog show --json
+# Surface KB knowledge for a source file
+papermind --kb ~/kb watch src/model.py
 
-# Search with topic filter
-papermind --kb ~/kb search "calibration" --topic swat_ml
+# Search with topic and year filters
+papermind --kb ~/kb search "groundwater recharge" --topic hydrology --year 2020
 
-# Run fully offline (no network calls at all)
-papermind --kb ~/kb --offline search "groundwater recharge"
-
-# Check tool health
-papermind --kb ~/kb doctor
+# Run fully offline
+papermind --kb ~/kb --offline search "calibration uncertainty"
 ```
 
-## Paper Discovery
-
-PaperMind searches three academic APIs in parallel:
-
-- **[OpenAlex](https://openalex.org/)** — free, no API key, direct PDF URLs for open-access papers
-- **[Semantic Scholar](https://www.semanticscholar.org/)** — structured metadata, citation counts (optional API key for higher rate limits)
-- **[Exa](https://exa.ai/)** — broad web search (requires API key)
-- **[Unpaywall](https://unpaywall.org/)** — DOI→PDF resolver fallback (free, no key)
-
-## PDF OCR
-
-PaperMind uses [GLM-OCR](https://huggingface.co/zai-org/GLM-OCR) (MIT, 0.9B params, #1 OmniDocBench) for PDF→markdown conversion. Features:
-
-- Runs locally on GPU (RTX 3060+ recommended, ~2GB VRAM)
-- Outputs structured markdown with LaTeX equations
-- Auto-detects section headings (numbered sections, ALL-CAPS)
-- Extracts embedded figures as PNG files alongside the markdown
-- Source PDF copied next to markdown for easy comparison
-
-Install with `pip install "papermind[ocr]"`. Model downloaded from HuggingFace on first use (~2GB, cached).
+---
 
 ## MCP Server
 
@@ -152,23 +156,65 @@ PaperMind exposes your KB to AI assistants via the [Model Context Protocol](http
 }
 ```
 
-**Available MCP tools:**
+**Available MCP tools (tiered retrieval):**
 
-| Tool | Description |
-|------|-------------|
-| `query` | Search the KB; optional `scope`, `topic`, `limit` |
-| `get` | Read a single document by relative path |
-| `multi_get` | Read multiple documents in one call |
-| `catalog_stats` | KB statistics (counts by type and topic) |
-| `list_topics` | All topics in the KB |
-| `discover_papers` | Search academic APIs |
+| Tool | Tier | Description |
+|------|------|-------------|
+| `scan` | 1 | Titles + IDs + scores (~50 tokens/result). Start here. |
+| `summary` | 2 | Structured abstract + metadata (~500 tokens/result) |
+| `detail` | 3 | Full document content with budget control |
+| `get` | — | Read a single document by path |
+| `multi_get` | — | Read multiple documents in one call |
+| `catalog_stats` | — | KB statistics by type and topic |
+| `list_topics` | — | All topics in the KB |
+| `discover_papers` | — | Search academic APIs without ingesting |
+| `watch_file` | — | Surface relevant KB entries for a source file |
 
-## Search
+The tiered design keeps token cost low: use `scan` to identify candidates, `summary` to qualify, `detail` only when full text is needed.
 
-Two search backends:
+---
 
-- **[qmd](https://github.com/tobi/qmd)** — hybrid search (BM25 + vector embeddings + LLM reranking). Install: `npm install -g @tobilu/qmd`, then `qmd collection add ~/kb --name my-kb`
-- **Built-in fallback** — grep-based term matching (zero dependencies)
+## KB Structure
+
+Each knowledge base is a directory with this layout:
+
+```
+~/kb/
+  .papermind/
+    config.toml          # KB configuration
+  catalog.json           # Machine-readable index
+  catalog.md             # Human-readable index
+  papers/
+    <slug>/
+      paper.md           # OCR output (markdown + LaTeX equations)
+      original.pdf       # Source PDF
+      images/            # Figures extracted from PDF
+  packages/
+    <name>/
+      <name>.md          # Package API documentation
+  codebases/
+    <name>/
+      <name>.md          # Extracted source summary
+  pdfs/                  # Staging area for downloads
+```
+
+Paper frontmatter carries structured metadata: title, DOI, authors, year, topic, tags, abstract, citation graph (`cites` / `cited_by`), extracted equations, and freshness tracking fields.
+
+---
+
+## Key Features
+
+- **Discovery**: parallel search across OpenAlex, Semantic Scholar, and Exa; ranked by citation count, DOI presence, and PDF availability
+- **OCR**: local GPU-based PDF conversion via GLM-OCR (0.9B params, MIT license, LaTeX equation output)
+- **Citation graph**: `cites` / `cited_by` from Semantic Scholar stored in frontmatter; `crawl` follows DOIs to expand the KB automatically
+- **Equation extraction**: regex-based `$$`/`$` block extraction with section context; stored in frontmatter for MCP retrieval
+- **Auto-tagging**: TF-IDF keyword extraction across the KB; alias expansion via `aliases.yaml` with domain cluster support
+- **Watch**: AST concept extraction from source files → KB search; available as both CLI command and MCP tool
+- **Tiered MCP**: three retrieval tiers (scan/summary/detail) to control token budget; `budget` parameter for fine-grained control
+- **Freshness tracking**: `audit stale` / `audit verify` / `audit check-versions` for KB maintenance
+- **Search**: hybrid semantic search via qmd (BM25 + vector + LLM reranking) with grep fallback and `--year` / `--topic` filters
+
+---
 
 ## Configuration
 
@@ -204,6 +250,22 @@ offline_only = false
 | `PAPERMIND_FIRECRAWL_KEY` | Firecrawl API key |
 | `HF_TOKEN` | HuggingFace token (faster model downloads) |
 
+---
+
+## Version History
+
+| Version | Date | Highlights |
+|---------|------|-----------|
+| v1.0.0 | 2026-03-16 | Initial release: OpenAlex/SemanticScholar/Exa discovery, Unpaywall DOI resolver, BibTeX export, dedup, config validation |
+| v1.1.0 | 2026-03-16 | GLM-OCR PDF ingestion (local GPU), image extraction, abstract frontmatter |
+| v1.2.0 | 2026-03-16 | Citation graph (cites/cited_by), `related` command, Unpaywall enrichment in orchestrator |
+| v1.3.0 | 2026-03-16 | PyPI publish workflow, `catalog show --topic` filter, richer dry-run table |
+| v1.3.1 | 2026-03-16 | Per-paper subdirectories, `migrate` command, `--target N` flag for guaranteed paper count |
+| v1.4.0 | 2026-03-16 | Tiered MCP (scan/summary/detail), `context-pack`, `crawl`, `tags refresh`, freshness audit, `--year` filter |
+| v1.5.0 | 2026-03-17 | `watch` command + MCP tool, structured equation extraction, search alias expansion, 426 tests |
+
+---
+
 ## Contributing
 
 ```bash
@@ -215,6 +277,8 @@ uv run ruff check src/
 ```
 
 The test suite is fully offline — no network calls, no external tools required.
+
+---
 
 ## License
 
