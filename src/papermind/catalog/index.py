@@ -125,7 +125,7 @@ class CatalogIndex:
                     parent_dir = md_file.parent
                     for sibling in sorted(parent_dir.glob("*.md")):
                         sibling_files.append(str(sibling.relative_to(base_path)))
-                    # Derive ID: use frontmatter id if present, else construct from type+name
+                    # Derive ID: frontmatter id if present, else type+name
                     entry_type = post.metadata["type"]
                     entry_id = post.metadata.get("id", "")
                     if not entry_id:

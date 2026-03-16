@@ -23,7 +23,8 @@ def render_catalog_md(entries: list[CatalogEntry]) -> str:
     lines = [
         "# PaperMind Knowledge Base",
         "",
-        f"> {len(papers)} papers | {len(packages)} packages | {len(codebases)} codebases",
+        f"> {len(papers)} papers | {len(packages)} packages"
+        f" | {len(codebases)} codebases",
         "",
     ]
 

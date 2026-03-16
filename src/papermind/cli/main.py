@@ -9,7 +9,7 @@ from rich.console import Console
 
 app = typer.Typer(
     name="papermind",
-    help="Scientific knowledge base — papers, packages, codebases → queryable markdown.",
+    help="Scientific knowledge base — papers, packages, codebases.",
     no_args_is_help=True,
 )
 

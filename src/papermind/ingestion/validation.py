@@ -37,7 +37,8 @@ def validate_pdf(path: Path) -> None:
         )
     if size > MAX_PDF_SIZE:
         raise ValidationError(
-            f"File too large ({size // (1024 * 1024)} MB, maximum {MAX_PDF_SIZE // (1024 * 1024)} MB): {path.name}"
+            f"File too large ({size // (1024 * 1024)} MB, "
+            f"maximum {MAX_PDF_SIZE // (1024 * 1024)} MB): {path.name}"
         )
 
     with open(path, "rb") as f:

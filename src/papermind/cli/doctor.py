@@ -38,7 +38,8 @@ def doctor_command(
 
     if glm_ocr_available():
         console.print(
-            "  [green]✓[/green] glm-ocr      — PDF conversion (transformers + torch + pymupdf)"
+            "  [green]✓[/green] glm-ocr      "
+            "— PDF conversion (transformers + torch + pymupdf)"
         )
     else:
         console.print(

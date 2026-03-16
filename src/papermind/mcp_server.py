@@ -157,7 +157,8 @@ async def _handle_query(kb_path: Path, args: dict) -> list[TextContent]:
     lines = []
     for r in results:
         lines.append(
-            f"## {r.title}\n**Path:** {r.path}\n**Score:** {r.score:.2f}\n\n{r.snippet}\n"
+            f"## {r.title}\n**Path:** {r.path}\n"
+            f"**Score:** {r.score:.2f}\n\n{r.snippet}\n"
         )
     return [TextContent(type="text", text="\n---\n".join(lines))]
 
