@@ -244,7 +244,14 @@ def fetch_command(
         ingested = 0
         for pdf_path, paper_result in downloaded:
             try:
-                entry = ingest_paper(pdf_path, topic, kb_path, config, no_reindex=True)
+                entry = ingest_paper(
+                    pdf_path,
+                    topic,
+                    kb_path,
+                    config,
+                    no_reindex=True,
+                    abstract=paper_result.abstract,
+                )
                 if entry:
                     console.print(f"  [green]Ingested[/green] {entry.title[:60]}")
                     ingested += 1

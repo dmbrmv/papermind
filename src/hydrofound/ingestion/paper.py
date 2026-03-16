@@ -100,6 +100,7 @@ def ingest_paper(
     config: HydroFoundConfig,
     *,
     no_reindex: bool = False,
+    abstract: str = "",
 ) -> CatalogEntry | None:
     """Full paper ingestion pipeline.
 
@@ -113,6 +114,7 @@ def ingest_paper(
         kb_path: Knowledge base root.
         config: HydroFound configuration.
         no_reindex: If True, skip qmd reindex after ingestion.
+        abstract: Optional abstract from discovery (stored in frontmatter).
 
     Returns:
         CatalogEntry if ingested, None if skipped (duplicate DOI).
@@ -177,6 +179,7 @@ def ingest_paper(
         topic=topic,
         doi=doi,
         **({"year": year} if year is not None else {}),
+        **({"abstract": abstract} if abstract else {}),
     )
 
     post = frontmatter.Post(markdown)

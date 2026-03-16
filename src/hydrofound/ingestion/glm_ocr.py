@@ -279,13 +279,15 @@ def convert_pdf_glm(
     processor, model = _ensure_model(model_name)
     images = _render_pdf_pages(path, dpi=dpi)
 
-    logger.info("Processing %d page(s) from %s", len(images), path.name)
+    from rich.progress import Progress
 
     pages_md = []
-    for i, img in enumerate(images):
-        logger.debug("OCR page %d/%d", i + 1, len(images))
-        page_text = _ocr_image(img, processor, model)
-        pages_md.append(page_text)
+    with Progress(transient=True) as progress:
+        task = progress.add_task(f"OCR {path.name}", total=len(images))
+        for img in images:
+            page_text = _ocr_image(img, processor, model)
+            pages_md.append(page_text)
+            progress.advance(task)
 
     markdown = "\n\n---\n\n".join(pages_md)
     return _add_markdown_headings(markdown)
