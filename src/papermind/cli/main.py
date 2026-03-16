@@ -45,6 +45,7 @@ from papermind.cli.doctor import doctor_command  # noqa: E402
 from papermind.cli.download import download_cmd  # noqa: E402
 from papermind.cli.ingest import ingest_app  # noqa: E402
 from papermind.cli.init import init_command  # noqa: E402
+from papermind.cli.related import related_cmd  # noqa: E402
 from papermind.cli.search import search_command  # noqa: E402
 
 app.command(name="init")(init_command)
@@ -56,6 +57,7 @@ app.command(name="discover")(discover_cmd)
 app.command(name="download")(download_cmd)
 app.command(name="doctor")(doctor_command)
 app.command(name="export-bibtex")(export_bibtex_command)
+app.command(name="related")(related_cmd)
 
 
 @app.command(name="reindex")
@@ -244,6 +246,8 @@ def fetch_command(
                     config,
                     no_reindex=True,
                     abstract=paper_result.abstract,
+                    cites=paper_result.cites or None,
+                    cited_by=paper_result.cited_by or None,
                 )
                 if entry:
                     console.print(f"  [green]Ingested[/green] {entry.title[:60]}")

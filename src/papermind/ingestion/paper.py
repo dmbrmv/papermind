@@ -101,6 +101,8 @@ def ingest_paper(
     *,
     no_reindex: bool = False,
     abstract: str = "",
+    cites: list[str] | None = None,
+    cited_by: list[str] | None = None,
 ) -> CatalogEntry | None:
     """Full paper ingestion pipeline.
 
@@ -115,6 +117,8 @@ def ingest_paper(
         config: PaperMind configuration.
         no_reindex: If True, skip qmd reindex after ingestion.
         abstract: Optional abstract from discovery (stored in frontmatter).
+        cites: DOIs of papers referenced by this paper (from Semantic Scholar).
+        cited_by: DOIs of papers that cite this paper (from Semantic Scholar).
 
     Returns:
         CatalogEntry if ingested, None if skipped (duplicate DOI).
@@ -180,6 +184,8 @@ def ingest_paper(
         doi=doi,
         **({"year": year} if year is not None else {}),
         **({"abstract": abstract} if abstract else {}),
+        **({"cites": cites} if cites else {}),
+        **({"cited_by": cited_by} if cited_by else {}),
     )
 
     post = frontmatter.Post(markdown)

@@ -20,6 +20,8 @@ class PaperResult:
     is_open_access: bool = False
     venue: str = ""
     citation_count: int = 0
+    cites: list[str] = field(default_factory=list)  # DOIs of referenced papers
+    cited_by: list[str] = field(default_factory=list)  # DOIs of citing papers
 
 
 class SearchProvider(Protocol):

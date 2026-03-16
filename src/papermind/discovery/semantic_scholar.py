@@ -13,8 +13,10 @@ logger = logging.getLogger(__name__)
 _BASE_URL = "https://api.semanticscholar.org/graph/v1/paper/search"
 _FIELDS = (
     "title,authors,year,abstract,externalIds,"
-    "isOpenAccess,venue,citationCount,openAccessPdf"
+    "isOpenAccess,venue,citationCount,openAccessPdf,"
+    "references,citations"
 )
+_REF_FIELDS = "externalIds"
 
 
 class SemanticScholarProvider:
@@ -94,6 +96,9 @@ class SemanticScholarProvider:
         open_access_pdf = raw.get("openAccessPdf") or {}
         pdf_url = open_access_pdf.get("url", "")
 
+        cites = self._extract_dois(raw.get("references") or [])
+        cited_by = self._extract_dois(raw.get("citations") or [])
+
         return PaperResult(
             title=raw.get("title", ""),
             authors=authors,
@@ -105,4 +110,27 @@ class SemanticScholarProvider:
             is_open_access=bool(raw.get("isOpenAccess", False)),
             venue=raw.get("venue", "") or "",
             citation_count=raw.get("citationCount", 0) or 0,
+            cites=cites,
+            cited_by=cited_by,
         )
+
+    @staticmethod
+    def _extract_dois(refs: list[dict]) -> list[str]:
+        """Extract DOIs from Semantic Scholar reference/citation entries.
+
+        Args:
+            refs: List of reference dicts from the API, each with optional
+                ``externalIds`` containing a ``DOI`` key.
+
+        Returns:
+            List of DOI strings (empty entries filtered out).
+        """
+        dois: list[str] = []
+        for ref in refs:
+            if not isinstance(ref, dict):
+                continue
+            ext = ref.get("externalIds") or {}
+            doi = ext.get("DOI", "")
+            if doi:
+                dois.append(doi)
+        return dois

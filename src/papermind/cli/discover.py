@@ -146,6 +146,8 @@ def _cache_results(kb: Path, query: str, results: list) -> None:
                 "is_open_access": r.is_open_access,
                 "venue": r.venue,
                 "citation_count": r.citation_count,
+                "cites": r.cites,
+                "cited_by": r.cited_by,
             }
             for r in results
         ],

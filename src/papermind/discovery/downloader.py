@@ -138,6 +138,8 @@ def load_last_search(kb_path: Path) -> list[PaperResult]:
             is_open_access=d.get("is_open_access", False),
             venue=d.get("venue", ""),
             citation_count=d.get("citation_count", 0),
+            cites=d.get("cites", []),
+            cited_by=d.get("cited_by", []),
         )
         for d in raw_results
         if isinstance(d, dict)
