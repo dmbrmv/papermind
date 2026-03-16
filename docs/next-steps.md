@@ -1,36 +1,65 @@
-# PaperMind — Next Steps
+# PaperMind — Roadmap
 
-## Completed in v1.0.0 (2026-03-16)
+## Shipped
 
-- [x] Unpaywall DOI→PDF resolver
-- [x] Deduplicate _try_qmd_reindex
-- [x] Path traversal guard on remove (is_relative_to)
-- [x] DOI regex tightened
-- [x] Clean empty directories after remove
-- [x] Package re-ingestion cleanup
-- [x] --topic filter in search
-- [x] Suppress transformers warnings
-- [x] OpenAlex abstract fetching
-- [x] fetch --dry-run
-- [x] catalog show --json
-- [x] BibTeX export
-- [x] Title similarity dedup
-- [x] Shared _resolve_kb helper
-- [x] Config validation (unknown sections, ocr_dpi bounds)
-- [x] Consistent CLI error handling
-- [x] Download command aligned with fetch (OpenAlex + Unpaywall)
-- [x] Shared build_providers()
-- [x] transformers dep fixed (>=4.48 with runtime check)
-- [x] qmd_search cwd fix
-- [x] Codebase re-ingestion dedup guard
+### v1.0.0 (2026-03-16)
+- Unpaywall DOI→PDF resolver
+- Path traversal protection, DOI regex tightening
+- Title similarity dedup, codebase re-ingestion dedup guard
+- OpenAlex abstract fetching, `fetch --dry-run`, `catalog show --json`
+- BibTeX export, `--topic` filter in search
+- Config validation (unknown sections, ocr_dpi bounds)
+- Consistent CLI error handling, shared `_resolve_kb` + `build_providers()`
+- transformers dep fix (>=4.48 with runtime check), qmd_search cwd fix
 
-## Remaining for v1.1
+### v1.1.0 (2026-03-16)
+- GLM-OCR PDF converter (0.9B, MIT, local GPU)
+- Image extraction from PDFs
+- Abstract storage in frontmatter
+- Rich progress bar for OCR
+- GitHub Actions CI (pytest + ruff, Python 3.11+3.12)
 
-- CC skill with WebSearch fallback for PDF URLs
-- `fetch --dry-run` with richer table (abstract preview, citation count)
-- Abstracts in search results (currently only in discovery)
-- Paper cross-referencing (which papers cite each other)
-- `catalog show --topic <name>` filter
-- Progress bars for OCR (per-page) and batch download
-- CI/CD (GitHub Actions: pytest + ruff)
-- PyPI publish
+### v1.2.0 (2026-03-16)
+- Unpaywall enrichment in orchestrator (all results pre-populated)
+- Discovery result ranking by quality signals (DOI, pdf_url, academic domain)
+- Citation graph: cites/cited_by from Semantic Scholar in frontmatter
+- `papermind related` command for connected papers
+- CC skill renamed hydrofound → papermind with WebSearch fallback
+
+---
+
+## v1.3 — Polish & Publish
+
+Low-risk items that round out the existing feature set before adding new capabilities.
+
+- [ ] **PyPI publish** — GitHub Actions workflow for `uv publish` on tag push
+- [ ] **`catalog show --topic <name>`** — filter catalog view by topic
+- [ ] **Richer `fetch --dry-run` table** — show abstract snippet, citation count, score
+- [ ] **Abstracts in search results** — surface abstract from frontmatter in grep fallback
+- [ ] **Progress bars** — per-page OCR progress, batch download progress
+- [ ] **Playwright download fallback** — JS-rendered PDFs from ScienceDirect, Springer, etc.
+
+## v1.4 — Smarter Ingestion
+
+Make ingested content more useful without requiring external LLMs.
+
+- [ ] **Auto-tagging** — extract keywords from paper text on ingest, populate `tags` field (currently always empty). Start with TF-IDF over corpus, no LLM needed.
+- [ ] **Metadata search** — `search --author smith`, `search --year 2023`, `search --doi 10.1/X`. Structured query on frontmatter fields, not just full-text.
+- [ ] **Firecrawl integration** — use configured Firecrawl key for package doc rendering (PyPI readme, project URLs, web documentation pages).
+- [ ] **Citation enrichment** — for papers already in KB, fetch missing citation metadata from Semantic Scholar (backfill cites/cited_by for papers ingested before v1.2).
+
+## v1.5 — Knowledge Layer
+
+AI-powered features that build on the clean data foundation.
+
+- [ ] **Concept index** — term → papers mapping extracted from titles + abstracts. Enables "show me all papers about evapotranspiration" without full-text search.
+- [ ] **LLM summaries** — per-paper 3-sentence summary stored in frontmatter. Run on ingest (optional, requires LLM API key). Surface in catalog and search.
+- [ ] **Cross-references** — infer paper relationships beyond citation graph: shared keywords, same authors, overlapping methods. Show in `related` command.
+- [ ] **Collection reports** — generate a markdown overview of a topic: key papers, methods used, open questions. Useful for literature review bootstrapping.
+
+## v2.0 — Platform (future)
+
+- Web UI for browsing and searching the KB
+- Collaborative KBs (multi-user, shared collections)
+- Recommendation engine (suggest papers based on reading history)
+- REST API for programmatic access beyond MCP
