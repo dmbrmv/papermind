@@ -145,7 +145,7 @@ class TestBatchAllSucceed:
 
         topic_dir = kb / "papers" / "swat"
         assert topic_dir.is_dir()
-        assert len(list(topic_dir.glob("*.md"))) == 2
+        assert len(list(topic_dir.rglob("paper.md"))) == 2
 
 
 # ---------------------------------------------------------------------------

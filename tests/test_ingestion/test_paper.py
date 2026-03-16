@@ -166,7 +166,7 @@ class TestIngestPaperFrontmatter:
             entry = ingest_paper(pdf, "hydrology", kb, cfg, no_reindex=True)
 
         assert entry is not None
-        written = list((kb / "papers" / "hydrology").glob("*.md"))[0]
+        written = list((kb / "papers" / "hydrology").rglob("paper.md"))[0]
         post = fm_lib.load(written)
         assert post.metadata["type"] == "paper"
 
@@ -180,7 +180,7 @@ class TestIngestPaperFrontmatter:
         with _mock_convert("# Green Ampt Paper (1911)\n\nDOI: 10.1234/ga1911.\n"):
             ingest_paper(pdf, "infiltration", kb, cfg, no_reindex=True)
 
-        written = list((kb / "papers" / "infiltration").glob("*.md"))[0]
+        written = list((kb / "papers" / "infiltration").rglob("paper.md"))[0]
         post = fm_lib.load(written)
         assert post.metadata["title"] == "Green Ampt Paper (1911)"
         assert post.metadata["doi"] == "10.1234/ga1911"
@@ -196,7 +196,7 @@ class TestIngestPaperFrontmatter:
         with _mock_convert("# Title\n"):
             ingest_paper(pdf, "general", kb, cfg, no_reindex=True)
 
-        written = list((kb / "papers" / "general").glob("*.md"))[0]
+        written = list((kb / "papers" / "general").rglob("paper.md"))[0]
         post = fm_lib.load(written)
         assert "added" in post.metadata
 
@@ -210,7 +210,7 @@ class TestIngestPaperFrontmatter:
         with _mock_convert("# A Paper Without DOI\n"):
             ingest_paper(pdf, "general", kb, cfg, no_reindex=True)
 
-        written = list((kb / "papers" / "general").glob("*.md"))[0]
+        written = list((kb / "papers" / "general").rglob("paper.md"))[0]
         post = fm_lib.load(written)
         doi_val = post.metadata.get("doi", "")
         assert doi_val == ""

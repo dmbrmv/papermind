@@ -96,30 +96,45 @@ def remove_command(
         console.print(f"[red]Entry not found:[/red] {entry_id}")
         raise typer.Exit(code=1)
 
-    # Collect all files to delete (with path traversal protection)
-    to_delete: list[Path] = []
-    for rel_path in [entry.path, *entry.files]:
-        target = (kb_path / rel_path).resolve()
-        if not target.is_relative_to(kb_path.resolve()):
-            console.print(f"[red]Path traversal blocked:[/red] {rel_path}")
-            raise typer.Exit(code=1)
-        to_delete.append(target)
+    # Resolve the entry's main file and its parent directory
+    import shutil
 
-    # Delete files
-    for target in to_delete:
-        if target.exists():
-            target.unlink()
+    entry_path = (kb_path / entry.path).resolve()
+    if not entry_path.is_relative_to(kb_path.resolve()):
+        console.print(f"[red]Path traversal blocked:[/red] {entry.path}")
+        raise typer.Exit(code=1)
 
-    # Clean empty parent directories
-    dirs_seen: set[Path] = set()
-    for target in to_delete:
-        dirs_seen.add(target.parent)
-    for d in dirs_seen:
-        try:
-            if d.exists() and d != kb_path.resolve() and not any(d.iterdir()):
-                d.rmdir()
-        except OSError:
-            pass
+    # For per-paper directories (paper.md inside slug/), remove the whole dir.
+    # For flat layout (slug.md in topic/), remove individual files.
+    paper_dir = entry_path.parent
+    if entry_path.name == "paper.md" and paper_dir != kb_path.resolve():
+        # New layout: remove the entire paper directory
+        if paper_dir.exists():
+            shutil.rmtree(paper_dir)
+    else:
+        # Legacy flat layout: remove individual files
+        to_delete: list[Path] = []
+        for rel_path in [entry.path, *entry.files]:
+            target = (kb_path / rel_path).resolve()
+            if not target.is_relative_to(kb_path.resolve()):
+                console.print(f"[red]Path traversal blocked:[/red] {rel_path}")
+                raise typer.Exit(code=1)
+            to_delete.append(target)
+
+        for target in to_delete:
+            if target.exists():
+                target.unlink()
+
+        # Clean empty parent directories
+        dirs_seen: set[Path] = set()
+        for target in to_delete:
+            dirs_seen.add(target.parent)
+        for d in dirs_seen:
+            try:
+                if d.exists() and d != kb_path.resolve() and not any(d.iterdir()):
+                    d.rmdir()
+            except OSError:
+                pass
 
     # Remove from catalog index and regenerate catalog.md
     index.remove(entry_id)

@@ -157,22 +157,22 @@ def ingest_paper(
 
     entry_id = generate_id("paper", title, year=year, kb_path=kb_path)
 
-    topic_dir = kb_path / "papers" / topic
-    topic_dir.mkdir(parents=True, exist_ok=True)
-
     slug = entry_id.removeprefix("paper-")
-    md_path = topic_dir / f"{slug}.md"
+    paper_dir = kb_path / "papers" / topic / slug
+    paper_dir.mkdir(parents=True, exist_ok=True)
+
+    md_path = paper_dir / "paper.md"
 
     # Extract embedded images (figures, charts) — best effort
     try:
         from papermind.ingestion.glm_ocr import extract_images
 
-        image_dir = topic_dir / slug
+        image_dir = paper_dir / "images"
         image_files = extract_images(pdf_path, image_dir)
         if image_files:
             markdown += "\n\n---\n\n## Figures\n\n"
             for img_name in image_files:
-                markdown += f"![{img_name}]({slug}/{img_name})\n\n"
+                markdown += f"![{img_name}](images/{img_name})\n\n"
     except Exception:  # noqa: BLE001
         logger.debug("Image extraction skipped for %s", pdf_path.name)
 
@@ -192,10 +192,10 @@ def ingest_paper(
     post.metadata = fm
     md_path.write_text(frontmatter.dumps(post))
 
-    # Copy source PDF alongside the markdown for easy comparison
+    # Copy source PDF into the paper directory
     import shutil
 
-    pdf_copy = topic_dir / f"{slug}.pdf"
+    pdf_copy = paper_dir / "original.pdf"
     if not pdf_copy.exists():
         shutil.copy2(pdf_path, pdf_copy)
 
