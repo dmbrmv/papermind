@@ -1,0 +1,16 @@
+# PaperMind search aliases — expand queries to related terms.
+# Add entries when search fails to find something you know is there.
+# Format: primary_term: [alias1, alias2, ...]
+
+groundwater: [baseflow, aquifer, recharge, gw, gwflow, water_table, percolation]
+calibration: [parameter_estimation, optimization, cma-es, nsga-ii, sensitivity, sufi-2, swat-cup]
+machine_learning: [neural_network, deep_learning, lstm, kan, surrogate, ai, ml]
+channel_routing: [muskingum, flood_routing, streamflow, hydrograph]
+evapotranspiration: [penman, hargreaves, transpiration, evaporation, pet, aet]
+rainfall_runoff: [precipitation, curve_number, green_ampt, infiltration, runoff]
+swat: [swat+, soil_water_assessment, hru, watershed]
+remote_sensing: [satellite, modis, landsat, sentinel, ndvi, era5]
+soil_moisture: [soil_water, vadose, unsaturated, field_capacity, wilting_point]
+flood: [inundation, flood_mapping, floodplain, return_period, discharge]
+uncertainty: [confidence_interval, ensemble, monte_carlo, bayesian, posterior]
+climate_change: [global_warming, scenario, rcp, ssp, projection, adaptation]

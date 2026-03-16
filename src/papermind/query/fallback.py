@@ -85,6 +85,41 @@ def _build_snippet(text: str, pattern: re.Pattern[str], context: int = 200) -> s
     return snippet
 
 
+def _load_aliases() -> dict[str, list[str]]:
+    """Load search aliases from bundled YAML file."""
+    import yaml
+
+    aliases_path = Path(__file__).parent.parent / "aliases.yaml"
+    if not aliases_path.exists():
+        return {}
+    try:
+        with open(aliases_path) as f:
+            data = yaml.safe_load(f)
+        return data if isinstance(data, dict) else {}
+    except Exception:
+        return {}
+
+
+def _expand_aliases(terms: list[str]) -> list[str]:
+    """Expand search terms using aliases."""
+    aliases = _load_aliases()
+    if not aliases:
+        return terms
+
+    expanded: set[str] = set(terms)
+    for term in terms:
+        t = term.lower()
+        # Check if term is a key
+        if t in aliases:
+            expanded.update(aliases[t])
+        # Check if term is a value
+        for key, values in aliases.items():
+            if t in values:
+                expanded.add(key)
+                expanded.update(values)
+    return list(expanded)
+
+
 def fallback_search(
     kb_root: Path,
     query: str,
@@ -110,6 +145,9 @@ def fallback_search(
     terms = [t.strip() for t in query.split() if t.strip()]
     if not terms:
         return []
+
+    # Expand terms using aliases
+    terms = _expand_aliases(terms)
 
     # Build a pattern that matches any term (case-insensitive)
     term_pattern = re.compile(
