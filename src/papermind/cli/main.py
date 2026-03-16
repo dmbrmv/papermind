@@ -254,19 +254,40 @@ def _fetch_until_target(
         console.print("[red]No providers available.[/red] Set API keys first.")
         raise typer.Exit(code=1)
 
+    # Count existing papers in this topic — target is cumulative
+    from papermind.catalog.index import CatalogIndex
+
+    catalog = CatalogIndex(kb_path)
+    existing = sum(1 for e in catalog.entries if e.topic == topic)
+
+    # Pre-seed seen DOIs from catalog to avoid re-downloading
+    seen_dois: set[str] = {e.doi.lower() for e in catalog.entries if e.doi}
+    seen_titles: set[str] = {
+        e.title.lower().strip() for e in catalog.entries if e.title
+    }
+
+    if existing >= target:
+        console.print(
+            f"[bold]{existing} paper(s) already in topic "
+            f"'{topic}'[/bold] (target: {target}). Nothing to do."
+        )
+        return
+
+    remaining = target - existing
     total_ingested = 0
-    seen_dois: set[str] = set()
-    seen_titles: set[str] = set()
-    batch_limit = target * 4  # overshoot: ~25% yield expected
-    max_discovery = target * 20  # safety cap
+    batch_limit = remaining * 4  # overshoot: ~25% yield expected
+    max_discovery = remaining * 20  # safety cap
     total_discovered = 0
 
     console.print(
-        f"[bold]Target: {target} paper(s)[/bold] for query: [bold]{query}[/bold]"
+        f"[bold]Target: {target} paper(s)[/bold] for query: "
+        f"[bold]{query}[/bold]\n"
+        f"[dim]{existing} already in topic '{topic}' → "
+        f"need {remaining} more[/dim]"
     )
 
     round_num = 0
-    while total_ingested < target:
+    while total_ingested < remaining:
         round_num += 1
         console.print(
             f"\n[dim]── Round {round_num}: discovering up to "
@@ -306,13 +327,14 @@ def _fetch_until_target(
         # Download
         downloaded = _download_results(new_results, kb_path)
         if downloaded and not no_ingest:
-            # Trim batch to not overshoot target
-            remaining = target - total_ingested
-            if len(downloaded) > remaining:
-                downloaded = downloaded[:remaining]
+            # Trim batch to not overshoot
+            still_need = remaining - total_ingested
+            if len(downloaded) > still_need:
+                downloaded = downloaded[:still_need]
             ingested = _ingest_downloaded(downloaded, topic, kb_path, config)
             total_ingested += ingested
-            console.print(f"[bold]{total_ingested}/{target}[/bold] papers ingested")
+            total_now = existing + total_ingested
+            console.print(f"[bold]{total_now}/{target}[/bold] papers in topic")
 
             # All downloads were duplicates — no point continuing
             if ingested == 0:
@@ -322,7 +344,9 @@ def _fetch_until_target(
                 break
         elif downloaded:
             total_ingested += len(downloaded)
-            console.print(f"[bold]{total_ingested}/{target}[/bold] papers downloaded")
+            console.print(
+                f"[bold]{total_ingested}/{remaining}[/bold] papers downloaded"
+            )
 
         # If we didn't get enough, increase batch for next round
         if total_ingested < target:
@@ -334,10 +358,11 @@ def _fetch_until_target(
                 )
                 break
 
+    total_now = existing + total_ingested
     console.print(
-        f"\n[bold]{total_ingested} paper(s) ingested "
-        f"into topic '{topic}'[/bold] "
-        f"(target was {target})"
+        f"\n[bold]{total_now}/{target} paper(s) in topic "
+        f"'{topic}'[/bold] "
+        f"({total_ingested} new this session)"
     )
 
 
