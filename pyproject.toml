@@ -25,6 +25,11 @@ ocr = ["transformers>=4.48", "torch>=2.0", "torchvision>=0.20", "accelerate>=1.0
 browser = ["playwright>=1.40"]
 dev = ["pytest>=8.0", "pytest-asyncio>=0.23", "ruff>=0.4"]
 
+[project.urls]
+Homepage = "https://github.com/dmbrmv/papermind"
+Repository = "https://github.com/dmbrmv/papermind"
+Issues = "https://github.com/dmbrmv/papermind/issues"
+
 [project.scripts]
 papermind = "papermind.cli.main:app"
 
