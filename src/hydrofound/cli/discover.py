@@ -72,41 +72,17 @@ def discover_cmd(
     _cache_results(kb, query, results)
 
 
-def _build_providers(source: str, cfg: HydroFoundConfig) -> list:  # type: ignore[name-defined]
-    """Build provider list based on --source flag and available API keys.
+def _build_providers(source: str, cfg: HydroFoundConfig) -> list:
+    """Build provider list based on --source flag and available API keys."""
+    from hydrofound.discovery.providers import build_providers
 
-    Args:
-        source: One of ``"all"``, ``"semantic_scholar"``, or ``"exa"``.
-        cfg: Loaded HydroFoundConfig instance.
-
-    Returns:
-        List of instantiated provider objects.
-    """
-    from hydrofound.discovery.exa import ExaProvider
-    from hydrofound.discovery.openalex import OpenAlexProvider
-    from hydrofound.discovery.semantic_scholar import SemanticScholarProvider
-
-    want_oa = source in ("all", "openalex")
-    want_ss = source in ("all", "semantic_scholar")
-    want_exa = source in ("all", "exa")
-
-    providers = []
-
-    if want_oa:
-        # OpenAlex: free, no key, high PDF hit rate — runs first.
-        providers.append(OpenAlexProvider())
-
-    if want_ss:
-        # Semantic Scholar works without an API key (rate-limited).
-        providers.append(SemanticScholarProvider(api_key=cfg.semantic_scholar_key))
-
-    if want_exa and cfg.exa_key:
-        providers.append(ExaProvider(api_key=cfg.exa_key))
-    elif want_exa and not cfg.exa_key:
+    providers = build_providers(source, cfg)
+    if source in ("all", "exa") and not cfg.exa_key:
         console.print(
             "[yellow]Exa provider skipped:[/yellow] "
             "set HYDROFOUND_EXA_KEY or exa_key in config.toml."
         )
+    return providers
 
     return providers
 

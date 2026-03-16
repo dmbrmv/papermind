@@ -131,10 +131,13 @@ async def _download_all(results: list, output_dir: Path) -> list[Path]:
         List of paths for successfully downloaded files.
     """
     from hydrofound.discovery.downloader import download_paper
+    from hydrofound.discovery.unpaywall import resolve_pdf_url
 
     downloaded: list[Path] = []
     for r in results:
         label = (r.title or r.doi or r.pdf_url or "unknown")[:60]
+        if not r.pdf_url and r.doi:
+            r.pdf_url = await resolve_pdf_url(r.doi) or ""
         if not r.pdf_url:
             console.print(f"  [yellow]SKIP[/yellow] {label!r} — no PDF URL")
             continue
@@ -229,14 +232,11 @@ def _run_fresh_search(
         List of :class:`PaperResult` objects from the search.
     """
     from hydrofound.config import load_config
-    from hydrofound.discovery.exa import ExaProvider
     from hydrofound.discovery.orchestrator import discover_papers
-    from hydrofound.discovery.semantic_scholar import SemanticScholarProvider
+    from hydrofound.discovery.providers import build_providers
 
     cfg = load_config(kb)
-    providers: list = [SemanticScholarProvider(api_key=cfg.semantic_scholar_key)]
-    if cfg.exa_key:
-        providers.append(ExaProvider(api_key=cfg.exa_key))
+    providers = build_providers("all", cfg)
 
     console.print(f"[dim]Searching for {query!r} …[/dim]")
     results = asyncio.run(discover_papers(query, providers, limit=limit))
