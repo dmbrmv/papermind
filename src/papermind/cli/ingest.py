@@ -177,10 +177,15 @@ def ingest_paper_cmd(
 def ingest_package_cmd(
     ctx: typer.Context,
     name: str = typer.Argument(..., help="Python package name"),
-    python: bool = typer.Option(  # noqa: ARG001
-        False,
-        "--python",
-        help="Treat as Python package (uses griffe). Always enabled for this command.",
+    from_git: str = typer.Option(
+        "",
+        "--from-git",
+        help="Clone a git repo and extract the package from it.",
+    ),
+    source_path: str = typer.Option(
+        "",
+        "--source-path",
+        help="Local path containing the package source (added to griffe search paths).",
     ),
     docs_url: str = typer.Option("", "--docs-url", help="Documentation URL to crawl."),
     no_reindex: bool = typer.Option(
@@ -194,7 +199,16 @@ def ingest_package_cmd(
     Extracts the public API via griffe (static analysis), optionally fetches
     web docs via Firecrawl or plain HTTP, and writes the result into
     kb/packages/<name>/. catalog.json and catalog.md are updated.
+
+    For packages not installed locally, use ``--from-git`` to clone a
+    repository or ``--source-path`` to point at a local checkout::
+
+        papermind ingest package lisflood --from-git https://github.com/ec-jrc/lisflood-code.git
+        papermind ingest package lisflood --source-path /tmp/lisflood-code/src
     """
+    import shutil
+    import tempfile
+
     from papermind.config import load_config
     from papermind.ingestion.package import ingest_package
 
@@ -205,6 +219,40 @@ def ingest_package_cmd(
     if offline:
         config.offline_only = True
 
+    # Resolve search paths for griffe
+    search_paths: list[Path] = []
+    clone_dir: Path | None = None
+
+    if from_git:
+        if offline:
+            console.print("[red]Error:[/red] --from-git requires network")
+            raise typer.Exit(code=1)
+        clone_dir = Path(tempfile.mkdtemp(prefix="papermind-git-"))
+        console.print(f"[dim]Cloning {from_git}...[/dim]")
+        import subprocess
+
+        result = subprocess.run(
+            ["git", "clone", "--depth", "1", from_git, str(clone_dir)],
+            capture_output=True,
+            text=True,
+        )
+        if result.returncode != 0:
+            console.print(f"[red]Clone failed:[/red] {result.stderr}")
+            shutil.rmtree(clone_dir, ignore_errors=True)
+            raise typer.Exit(code=1)
+        # Auto-detect src/ layout or root package
+        if (clone_dir / "src").is_dir():
+            search_paths.append(clone_dir / "src")
+        else:
+            search_paths.append(clone_dir)
+
+    if source_path:
+        sp = Path(source_path).resolve()
+        if not sp.is_dir():
+            console.print(f"[red]Not a directory:[/red] {sp}")
+            raise typer.Exit(code=1)
+        search_paths.append(sp)
+
     try:
         entry = ingest_package(
             name,
@@ -212,10 +260,14 @@ def ingest_package_cmd(
             config,
             docs_url=docs_url,
             no_reindex=no_reindex,
+            search_paths=search_paths or None,
         )
-    except Exception as exc:  # griffe.LoadingError or unexpected
+    except Exception as exc:
         console.print(f"[red]Ingestion failed:[/red] {exc}")
         raise typer.Exit(code=1) from exc
+    finally:
+        if clone_dir and clone_dir.exists():
+            shutil.rmtree(clone_dir, ignore_errors=True)
 
     console.print(f"[green]Ingested[/green] package [bold]{name}[/bold]")
     console.print(f"  ID:    {entry.id}")

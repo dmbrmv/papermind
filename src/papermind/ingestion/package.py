@@ -79,15 +79,20 @@ def _extract_module(member: object) -> ModuleAPI:
     return mod
 
 
-def extract_api(package_name: str) -> PackageAPI:
-    """Extract API structure from an installed Python package.
+def extract_api(
+    package_name: str,
+    search_paths: list[Path] | None = None,
+) -> PackageAPI:
+    """Extract API structure from a Python package.
 
     Loads the package with griffe (static analysis), then walks all
     top-level module members to collect functions, classes, and
     docstrings.
 
     Args:
-        package_name: Import name of the installed package (e.g. "papermind").
+        package_name: Import name of the package (e.g. "lisflood").
+        search_paths: Additional paths for griffe to find the package.
+            Use for local source trees not on sys.path.
 
     Returns:
         PackageAPI containing one ModuleAPI per top-level module member.
@@ -95,7 +100,10 @@ def extract_api(package_name: str) -> PackageAPI:
     Raises:
         griffe.LoadingError: If the package cannot be found or loaded.
     """
-    pkg = griffe.load(package_name)
+    kwargs: dict = {}
+    if search_paths:
+        kwargs["search_paths"] = [str(p) for p in search_paths]
+    pkg = griffe.load(package_name, **kwargs)
     result = PackageAPI()
 
     for member in pkg.members.values():
@@ -161,6 +169,7 @@ def ingest_package(
     *,
     docs_url: str = "",
     no_reindex: bool = False,
+    search_paths: list[Path] | None = None,
 ) -> CatalogEntry:
     """Full package ingestion pipeline.
 
@@ -181,7 +190,7 @@ def ingest_package(
     import frontmatter as fm_lib
 
     # 1. Extract API via griffe
-    api = extract_api(package_name)
+    api = extract_api(package_name, search_paths=search_paths)
     api_md = render_api_markdown(api, package_name)
 
     # 2. Optionally fetch web docs
