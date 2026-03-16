@@ -313,6 +313,13 @@ def _fetch_until_target(
             ingested = _ingest_downloaded(downloaded, topic, kb_path, config)
             total_ingested += ingested
             console.print(f"[bold]{total_ingested}/{target}[/bold] papers ingested")
+
+            # All downloads were duplicates — no point continuing
+            if ingested == 0:
+                console.print(
+                    "[yellow]All papers already in KB (duplicates). Stopping.[/yellow]"
+                )
+                break
         elif downloaded:
             total_ingested += len(downloaded)
             console.print(f"[bold]{total_ingested}/{target}[/bold] papers downloaded")
