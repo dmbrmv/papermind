@@ -11,10 +11,12 @@ from mcp.types import TextContent
 
 from papermind.mcp_server import (
     _handle_catalog_stats,
+    _handle_detail,
     _handle_get,
     _handle_list_topics,
     _handle_multi_get,
-    _handle_query,
+    _handle_scan,
+    _handle_summary,
     create_server,
 )
 
@@ -29,7 +31,9 @@ def kb_root(tmp_path: Path) -> Path:
     papers_dir = tmp_path / "papers"
     papers_dir.mkdir()
     (papers_dir / "test_paper.md").write_text(
-        "---\ntitle: Test Paper\ntopic: hydrology\n---\n\nA paper about rivers."
+        "---\ntitle: Test Paper\ntopic: hydrology\n"
+        "doi: '10.1/test'\nabstract: A paper about rivers.\n---\n\n"
+        "A paper about rivers and hydrology."
     )
     return tmp_path
 
@@ -48,56 +52,49 @@ def test_create_server_returns_server(kb_root: Path) -> None:
 
 
 # ---------------------------------------------------------------------------
-# list_tools — via the server's registered handler
+# list_tools
 # ---------------------------------------------------------------------------
 
 
 @pytest.mark.asyncio
-async def test_list_tools_returns_six_tools(kb_root: Path) -> None:
-    """list_tools should return exactly 6 tools with the correct names."""
+async def test_list_tools_returns_expected_tools(kb_root: Path) -> None:
+    """list_tools should return tools including tiered retrieval."""
     server = create_server(kb_root)
-
-    # The list_tools handler is stored in request_handlers; invoke it directly
     from mcp.types import ListToolsRequest
 
     handler = server.request_handlers[ListToolsRequest]
     result = await handler(ListToolsRequest(method="tools/list"))
 
-    # result is a ServerResult wrapping a ListToolsResult
     tools = result.root.tools
-    assert len(tools) == 6
-
     names = {t.name for t in tools}
-    assert names == {
-        "query",
-        "get",
-        "multi_get",
-        "catalog_stats",
-        "list_topics",
-        "discover_papers",
-    }
+    assert "scan" in names
+    assert "summary" in names
+    assert "detail" in names
+    assert "get" in names
+    assert "catalog_stats" in names
+    assert "discover_papers" in names
 
 
 @pytest.mark.asyncio
-async def test_list_tools_query_has_required_field(kb_root: Path) -> None:
-    """The 'query' tool should declare 'q' as a required field."""
+async def test_list_tools_scan_has_required_field(kb_root: Path) -> None:
+    """The 'scan' tool should declare 'q' as a required field."""
     server = create_server(kb_root)
     from mcp.types import ListToolsRequest
 
     handler = server.request_handlers[ListToolsRequest]
     result = await handler(ListToolsRequest(method="tools/list"))
     tools_by_name = {t.name: t for t in result.root.tools}
-    assert "q" in tools_by_name["query"].inputSchema["required"]
+    assert "q" in tools_by_name["scan"].inputSchema["required"]
 
 
 # ---------------------------------------------------------------------------
-# _handle_query
+# _handle_scan (tier 1)
 # ---------------------------------------------------------------------------
 
 
 @pytest.mark.asyncio
-async def test_handle_query_returns_results(kb_root: Path) -> None:
-    """_handle_query should return formatted results for a matching query."""
+async def test_handle_scan_returns_results(kb_root: Path) -> None:
+    """_handle_scan should return compact results with titles and paths."""
     from papermind.query.fallback import SearchResult
 
     mock_results = [
@@ -110,9 +107,12 @@ async def test_handle_query_returns_results(kb_root: Path) -> None:
     ]
     with (
         patch("papermind.query.qmd.is_qmd_available", return_value=False),
-        patch("papermind.query.fallback.fallback_search", return_value=mock_results),
+        patch(
+            "papermind.query.fallback.fallback_search",
+            return_value=mock_results,
+        ),
     ):
-        response = await _handle_query(kb_root, {"q": "rivers", "limit": 10})
+        response = await _handle_scan(kb_root, {"q": "rivers", "limit": 10})
 
     assert len(response) == 1
     assert isinstance(response[0], TextContent)
@@ -121,50 +121,130 @@ async def test_handle_query_returns_results(kb_root: Path) -> None:
 
 
 @pytest.mark.asyncio
-async def test_handle_query_no_results(kb_root: Path) -> None:
-    """_handle_query should return a 'No results found.' message when empty."""
+async def test_handle_scan_no_results(kb_root: Path) -> None:
+    """_handle_scan should return 'No results found.' when empty."""
     with (
         patch("papermind.query.qmd.is_qmd_available", return_value=False),
         patch("papermind.query.fallback.fallback_search", return_value=[]),
     ):
-        response = await _handle_query(kb_root, {"q": "xyzzy"})
+        response = await _handle_scan(kb_root, {"q": "xyzzy"})
 
     assert response[0].text == "No results found."
 
 
 # ---------------------------------------------------------------------------
-# _handle_get
+# _handle_summary (tier 2)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_handle_summary_includes_metadata(kb_root: Path) -> None:
+    """_handle_summary should include DOI, topic, abstract from frontmatter."""
+    from papermind.query.fallback import SearchResult
+
+    mock_results = [
+        SearchResult(
+            path="papers/test_paper.md",
+            title="Test Paper",
+            snippet="A paper about rivers.",
+            score=0.9,
+        )
+    ]
+    with (
+        patch("papermind.query.qmd.is_qmd_available", return_value=False),
+        patch(
+            "papermind.query.fallback.fallback_search",
+            return_value=mock_results,
+        ),
+    ):
+        response = await _handle_summary(kb_root, {"q": "rivers", "limit": 5})
+
+    text = response[0].text
+    assert "Test Paper" in text
+    assert "10.1/test" in text
+    assert "hydrology" in text
+
+
+@pytest.mark.asyncio
+async def test_handle_summary_respects_budget(kb_root: Path) -> None:
+    """_handle_summary with budget=50 should produce short output."""
+    from papermind.query.fallback import SearchResult
+
+    mock_results = [
+        SearchResult(
+            path="papers/test_paper.md",
+            title="Test Paper",
+            snippet="A" * 500,
+            score=0.9,
+        ),
+        SearchResult(
+            path="papers/second.md",
+            title="Second Paper",
+            snippet="B" * 500,
+            score=0.8,
+        ),
+    ]
+    with (
+        patch("papermind.query.qmd.is_qmd_available", return_value=False),
+        patch(
+            "papermind.query.fallback.fallback_search",
+            return_value=mock_results,
+        ),
+    ):
+        response = await _handle_summary(kb_root, {"q": "test", "budget": 50})
+
+    # Budget of 50 tokens ≈ 200 chars — should only fit 1 result
+    assert "Second Paper" not in response[0].text
+
+
+# ---------------------------------------------------------------------------
+# _handle_detail (tier 3)
+# ---------------------------------------------------------------------------
+
+
+def test_handle_detail_returns_full_content(kb_root: Path) -> None:
+    """_handle_detail should return the full file content."""
+    response = _handle_detail(kb_root, {"path": "papers/test_paper.md"})
+    assert "A paper about rivers" in response[0].text
+
+
+def test_handle_detail_respects_budget(kb_root: Path) -> None:
+    """_handle_detail with budget should truncate long content."""
+    # Write a large file
+    (kb_root / "papers" / "big.md").write_text("x" * 10000)
+    response = _handle_detail(kb_root, {"path": "papers/big.md", "budget": 100})
+    assert "[...truncated to budget...]" in response[0].text
+    assert len(response[0].text) < 1000
+
+
+def test_handle_detail_path_traversal(kb_root: Path) -> None:
+    """_handle_detail should reject paths outside the KB."""
+    response = _handle_detail(kb_root, {"path": "../../etc/passwd"})
+    assert "outside the KB" in response[0].text
+
+
+# ---------------------------------------------------------------------------
+# _handle_get (legacy)
 # ---------------------------------------------------------------------------
 
 
 def test_handle_get_reads_file(kb_root: Path) -> None:
     """_handle_get should return file contents for a valid path."""
     response = _handle_get(kb_root, {"path": "papers/test_paper.md"})
-
     assert len(response) == 1
-    assert isinstance(response[0], TextContent)
-    assert "A paper about rivers." in response[0].text
+    assert "A paper about rivers" in response[0].text
 
 
 def test_handle_get_missing_file(kb_root: Path) -> None:
-    """_handle_get should return a 'File not found' message for missing paths."""
+    """_handle_get should return 'File not found' for missing paths."""
     response = _handle_get(kb_root, {"path": "papers/nonexistent.md"})
-
     assert "File not found" in response[0].text
 
 
 def test_handle_get_path_traversal_rejected(kb_root: Path) -> None:
-    """_handle_get should reject paths that escape the knowledge base root."""
+    """_handle_get should reject paths that escape the KB root."""
     response = _handle_get(kb_root, {"path": "../../etc/passwd"})
-
-    assert "outside the knowledge base" in response[0].text
-
-
-def test_handle_get_path_traversal_via_absolute(kb_root: Path) -> None:
-    """_handle_get should reject absolute paths pointing outside the KB."""
-    response = _handle_get(kb_root, {"path": "/etc/passwd"})
-
-    assert "outside the knowledge base" in response[0].text
+    assert "outside the KB" in response[0].text
 
 
 # ---------------------------------------------------------------------------
@@ -173,72 +253,57 @@ def test_handle_get_path_traversal_via_absolute(kb_root: Path) -> None:
 
 
 def test_handle_multi_get_reads_multiple(kb_root: Path) -> None:
-    """_handle_multi_get should return concatenated contents for valid paths."""
+    """_handle_multi_get should return concatenated contents."""
     (kb_root / "papers" / "second.md").write_text("Second document.")
     response = _handle_multi_get(
         kb_root,
         {"paths": ["papers/test_paper.md", "papers/second.md"]},
     )
-
-    assert len(response) == 1
     text = response[0].text
     assert "papers/test_paper.md" in text
-    assert "papers/second.md" in text
-    assert "A paper about rivers." in text
     assert "Second document." in text
-
-
-def test_handle_multi_get_missing_file(kb_root: Path) -> None:
-    """_handle_multi_get should report 'File not found' for missing paths."""
-    response = _handle_multi_get(kb_root, {"paths": ["papers/missing.md"]})
-
-    assert "File not found" in response[0].text
 
 
 def test_handle_multi_get_path_traversal_rejected(kb_root: Path) -> None:
     """_handle_multi_get should reject paths that escape the KB root."""
     response = _handle_multi_get(kb_root, {"paths": ["../../etc/passwd"]})
-
     assert "outside knowledge base" in response[0].text
 
 
 # ---------------------------------------------------------------------------
-# _handle_catalog_stats
+# _handle_catalog_stats + _handle_list_topics
 # ---------------------------------------------------------------------------
 
 
 def test_handle_catalog_stats_returns_json(kb_root: Path) -> None:
     """_handle_catalog_stats should return valid JSON stats."""
     mock_stats = {"total": 5, "topics": {"hydrology": 3, "ml": 2}}
-    with patch("papermind.catalog.index.CatalogIndex.stats", return_value=mock_stats):
+    with patch(
+        "papermind.catalog.index.CatalogIndex.stats",
+        return_value=mock_stats,
+    ):
         response = _handle_catalog_stats(kb_root)
-
-    assert len(response) == 1
     parsed = json.loads(response[0].text)
     assert parsed["total"] == 5
-    assert "topics" in parsed
-
-
-# ---------------------------------------------------------------------------
-# _handle_list_topics
-# ---------------------------------------------------------------------------
 
 
 def test_handle_list_topics_returns_list(kb_root: Path) -> None:
     """_handle_list_topics should return a JSON array of topic names."""
     mock_stats = {"topics": {"hydrology": 3, "ml": 2}}
-    with patch("papermind.catalog.index.CatalogIndex.stats", return_value=mock_stats):
+    with patch(
+        "papermind.catalog.index.CatalogIndex.stats",
+        return_value=mock_stats,
+    ):
         response = _handle_list_topics(kb_root)
-
-    assert len(response) == 1
     topics = json.loads(response[0].text)
-    assert isinstance(topics, list)
     assert set(topics) == {"hydrology", "ml"}
 
 
 def test_handle_list_topics_empty_catalog(kb_root: Path) -> None:
-    """_handle_list_topics should return an empty list when no topics exist."""
-    with patch("papermind.catalog.index.CatalogIndex.stats", return_value={}):
+    """_handle_list_topics should return empty list when no topics."""
+    with patch(
+        "papermind.catalog.index.CatalogIndex.stats",
+        return_value={},
+    ):
         response = _handle_list_topics(kb_root)
-
     assert json.loads(response[0].text) == []

@@ -24,8 +24,11 @@ def create_server(kb_path: Path) -> Server:
     async def list_tools() -> list[Tool]:
         return [
             Tool(
-                name="query",
-                description="Search the knowledge base",
+                name="scan",
+                description=(
+                    "Fast triage search — returns titles, IDs, and scores. "
+                    "~50 tokens per result. Use to decide what's worth reading."
+                ),
                 inputSchema={
                     "type": "object",
                     "properties": {
@@ -41,7 +44,7 @@ def create_server(kb_path: Path) -> Server:
                         },
                         "limit": {
                             "type": "integer",
-                            "default": 10,
+                            "default": 20,
                             "description": "Max results",
                         },
                     },
@@ -49,8 +52,61 @@ def create_server(kb_path: Path) -> Server:
                 },
             ),
             Tool(
+                name="summary",
+                description=(
+                    "Structured summaries — title, abstract, metadata, DOI. "
+                    "~500 tokens per result. Use to decide what's worth "
+                    "a full read."
+                ),
+                inputSchema={
+                    "type": "object",
+                    "properties": {
+                        "q": {"type": "string", "description": "Search query"},
+                        "scope": {
+                            "type": "string",
+                            "enum": ["papers", "packages", "codebases"],
+                        },
+                        "topic": {"type": "string"},
+                        "limit": {
+                            "type": "integer",
+                            "default": 5,
+                        },
+                        "budget": {
+                            "type": "integer",
+                            "description": (
+                                "Max output tokens (approximate). "
+                                "Results are truncated to fit."
+                            ),
+                        },
+                    },
+                    "required": ["q"],
+                },
+            ),
+            Tool(
+                name="detail",
+                description=(
+                    "Full document read — complete text, equations, figures. "
+                    "~3000 tokens per result. Use when you need the actual "
+                    "content."
+                ),
+                inputSchema={
+                    "type": "object",
+                    "properties": {
+                        "path": {
+                            "type": "string",
+                            "description": "Relative path from scan/summary",
+                        },
+                        "budget": {
+                            "type": "integer",
+                            "description": "Max output tokens (approximate)",
+                        },
+                    },
+                    "required": ["path"],
+                },
+            ),
+            Tool(
                 name="get",
-                description="Read a document by path",
+                description="Read a document by path (raw content)",
                 inputSchema={
                     "type": "object",
                     "properties": {
@@ -95,7 +151,7 @@ def create_server(kb_path: Path) -> Server:
                     "properties": {
                         "query": {
                             "type": "string",
-                            "description": "Search query for academic papers",
+                            "description": "Search query",
                         },
                         "limit": {"type": "integer", "default": 10},
                         "source": {
@@ -111,9 +167,13 @@ def create_server(kb_path: Path) -> Server:
 
     @server.call_tool()
     async def call_tool(name: str, arguments: dict) -> list[TextContent]:
-        """Route tool calls to the appropriate module."""
-        if name == "query":
-            return await _handle_query(kb_path, arguments)
+        """Route tool calls to the appropriate handler."""
+        if name == "scan":
+            return await _handle_scan(kb_path, arguments)
+        elif name == "summary":
+            return await _handle_summary(kb_path, arguments)
+        elif name == "detail":
+            return _handle_detail(kb_path, arguments)
         elif name == "get":
             return _handle_get(kb_path, arguments)
         elif name == "multi_get":
@@ -129,79 +189,128 @@ def create_server(kb_path: Path) -> Server:
     return server
 
 
-async def _handle_query(kb_path: Path, args: dict) -> list[TextContent]:
-    """Handle search query.
+# ---------------------------------------------------------------------------
+# Tiered retrieval: scan → summary → detail
+# ---------------------------------------------------------------------------
 
-    Args:
-        kb_path: Knowledge base root path.
-        args: Tool arguments including ``q``, optional ``scope``, ``topic``, ``limit``.
 
-    Returns:
-        Formatted search results as MCP TextContent.
-    """
-    from papermind.query.fallback import fallback_search
-    from papermind.query.qmd import is_qmd_available, qmd_search
-
-    q = args["q"]
-    scope = args.get("scope", "")
-    topic = args.get("topic", "")
-    limit = args.get("limit", 10)
-
-    if is_qmd_available():
-        results = qmd_search(kb_path, q, scope=scope or "", limit=limit)
-    else:
-        results = fallback_search(
-            kb_path, q, scope=scope or None, topic=topic or None, limit=limit
-        )
-
+async def _handle_scan(kb_path: Path, args: dict) -> list[TextContent]:
+    """Tier 1: titles + IDs + scores. ~50 tokens per result."""
+    results = _search(kb_path, args)
     if not results:
         return [TextContent(type="text", text="No results found.")]
 
     lines = []
+    for i, r in enumerate(results, 1):
+        lines.append(f"{i}. [{r.score:.1f}] {r.title} — {r.path}")
+    return [TextContent(type="text", text="\n".join(lines))]
+
+
+async def _handle_summary(kb_path: Path, args: dict) -> list[TextContent]:
+    """Tier 2: structured abstract + metadata. ~500 tokens per result."""
+    import frontmatter as fm_lib
+
+    results = _search(kb_path, args)
+    if not results:
+        return [TextContent(type="text", text="No results found.")]
+
+    budget = args.get("budget", 0)
+    lines = []
+    total_chars = 0
+
     for r in results:
-        lines.append(
-            f"## {r.title}\n**Path:** {r.path}\n"
-            f"**Score:** {r.score:.2f}\n\n{r.snippet}\n"
-        )
-    return [TextContent(type="text", text="\n---\n".join(lines))]
+        # Read frontmatter for rich metadata
+        full_path = kb_path / r.path
+        meta: dict = {}
+        if full_path.exists():
+            try:
+                post = fm_lib.load(full_path)
+                meta = dict(post.metadata)
+            except Exception:
+                pass
+
+        entry_lines = [f"## {r.title}"]
+        entry_lines.append(f"**Path:** {r.path}")
+        if meta.get("doi"):
+            entry_lines.append(f"**DOI:** {meta['doi']}")
+        if meta.get("year"):
+            entry_lines.append(f"**Year:** {meta['year']}")
+        if meta.get("topic"):
+            entry_lines.append(f"**Topic:** {meta['topic']}")
+
+        abstract = meta.get("abstract", "")
+        if abstract:
+            entry_lines.append(f"**Abstract:** {abstract[:300]}")
+        elif r.snippet:
+            entry_lines.append(f"**Snippet:** {r.snippet[:200]}")
+
+        cites = meta.get("cites", [])
+        cited_by = meta.get("cited_by", [])
+        if cites or cited_by:
+            entry_lines.append(
+                f"**Citations:** {len(cites)} refs, {len(cited_by)} cited by"
+            )
+
+        block = "\n".join(entry_lines)
+
+        # Budget enforcement (rough: 1 token ≈ 4 chars)
+        if budget and total_chars + len(block) > budget * 4:
+            break
+        lines.append(block)
+        total_chars += len(block)
+
+    return [TextContent(type="text", text="\n\n---\n\n".join(lines))]
+
+
+def _handle_detail(kb_path: Path, args: dict) -> list[TextContent]:
+    """Tier 3: full document content."""
+
+    rel_path = args["path"]
+    full_path = (kb_path / rel_path).resolve()
+
+    if not full_path.is_relative_to(kb_path.resolve()):
+        return [
+            TextContent(
+                type="text",
+                text=f"Error: path '{rel_path}' is outside the KB.",
+            )
+        ]
+    if not full_path.exists():
+        return [TextContent(type="text", text=f"File not found: {rel_path}")]
+
+    content = full_path.read_text()
+    budget = args.get("budget", 0)
+    if budget:
+        max_chars = budget * 4
+        if len(content) > max_chars:
+            content = content[:max_chars] + "\n\n[...truncated to budget...]"
+
+    return [TextContent(type="text", text=content)]
+
+
+# ---------------------------------------------------------------------------
+# Legacy tools (get, multi_get, catalog, topics, discover)
+# ---------------------------------------------------------------------------
 
 
 def _handle_get(kb_path: Path, args: dict) -> list[TextContent]:
-    """Read a single document.
-
-    Args:
-        kb_path: Knowledge base root path.
-        args: Tool arguments containing ``path``.
-
-    Returns:
-        File contents as MCP TextContent, or an error message.
-    """
+    """Read a single document."""
     rel_path = args["path"]
-    # Path traversal protection
     full_path = (kb_path / rel_path).resolve()
     if not full_path.is_relative_to(kb_path.resolve()):
         return [
             TextContent(
                 type="text",
-                text=f"Error: path '{rel_path}' is outside the knowledge base.",
+                text=f"Error: path '{rel_path}' is outside the KB.",
             )
         ]
-
     if not full_path.exists():
         return [TextContent(type="text", text=f"File not found: {rel_path}")]
     return [TextContent(type="text", text=full_path.read_text())]
 
 
 def _handle_multi_get(kb_path: Path, args: dict) -> list[TextContent]:
-    """Read multiple documents.
-
-    Args:
-        kb_path: Knowledge base root path.
-        args: Tool arguments containing ``paths`` list.
-
-    Returns:
-        Concatenated file contents separated by horizontal rules.
-    """
+    """Read multiple documents."""
     texts = []
     for p in args["paths"]:
         full_path = (kb_path / p).resolve()
@@ -216,14 +325,7 @@ def _handle_multi_get(kb_path: Path, args: dict) -> list[TextContent]:
 
 
 def _handle_catalog_stats(kb_path: Path) -> list[TextContent]:
-    """Return catalog statistics.
-
-    Args:
-        kb_path: Knowledge base root path.
-
-    Returns:
-        JSON-formatted catalog statistics.
-    """
+    """Return catalog statistics."""
     from papermind.catalog.index import CatalogIndex
 
     stats = CatalogIndex(kb_path).stats()
@@ -231,14 +333,7 @@ def _handle_catalog_stats(kb_path: Path) -> list[TextContent]:
 
 
 def _handle_list_topics(kb_path: Path) -> list[TextContent]:
-    """Return list of topics.
-
-    Args:
-        kb_path: Knowledge base root path.
-
-    Returns:
-        JSON array of topic names.
-    """
+    """Return list of topics."""
     from papermind.catalog.index import CatalogIndex
 
     stats = CatalogIndex(kb_path).stats()
@@ -247,15 +342,7 @@ def _handle_list_topics(kb_path: Path) -> list[TextContent]:
 
 
 async def _handle_discover(kb_path: Path, args: dict) -> list[TextContent]:
-    """Search academic APIs.
-
-    Args:
-        kb_path: Knowledge base root path.
-        args: Tool arguments including ``query``, optional ``source``, ``limit``.
-
-    Returns:
-        Formatted paper results as MCP TextContent.
-    """
+    """Search academic APIs."""
     from papermind.config import load_config
     from papermind.discovery.exa import ExaProvider
     from papermind.discovery.orchestrator import discover_papers
@@ -274,10 +361,7 @@ async def _handle_discover(kb_path: Path, args: dict) -> list[TextContent]:
         return [
             TextContent(
                 type="text",
-                text=(
-                    "No search providers configured. "
-                    "Set PAPERMIND_EXA_KEY or PAPERMIND_SEMANTIC_SCHOLAR_KEY."
-                ),
+                text="No search providers configured.",
             )
         ]
 
@@ -290,11 +374,33 @@ async def _handle_discover(kb_path: Path, args: dict) -> list[TextContent]:
 
     lines = []
     for r in results:
-        oa = "✓ Open Access" if r.is_open_access else ""
+        oa = "Open Access" if r.is_open_access else ""
         lines.append(
             f"**{r.title}**\n"
-            f"Authors: {', '.join(r.authors) if r.authors else 'Unknown'}\n"
-            f"Year: {r.year or 'Unknown'} | DOI: {r.doi or 'N/A'} | {oa}\n"
-            f"{r.abstract[:200] + '...' if len(r.abstract) > 200 else r.abstract}"
+            f"Year: {r.year or '?'} | DOI: {r.doi or 'N/A'}"
+            f"{' | ' + oa if oa else ''}\n"
+            f"{r.abstract[:200] + '...' if len(r.abstract or '') > 200 else r.abstract or ''}"
         )
     return [TextContent(type="text", text="\n\n---\n\n".join(lines))]
+
+
+# ---------------------------------------------------------------------------
+# Shared search helper
+# ---------------------------------------------------------------------------
+
+
+def _search(kb_path: Path, args: dict) -> list:
+    """Run search using qmd or fallback."""
+    from papermind.query.fallback import fallback_search
+    from papermind.query.qmd import is_qmd_available, qmd_search
+
+    q = args["q"]
+    scope = args.get("scope", "")
+    topic = args.get("topic", "")
+    limit = args.get("limit", 10)
+
+    if is_qmd_available():
+        return qmd_search(kb_path, q, scope=scope or "", limit=limit)
+    return fallback_search(
+        kb_path, q, scope=scope or None, topic=topic or None, limit=limit
+    )
