@@ -66,10 +66,12 @@ app.command(name="related")(related_cmd)
 from papermind.cli.backfill import backfill_cmd  # noqa: E402
 from papermind.cli.crawl import crawl_cmd  # noqa: E402
 from papermind.cli.migrate import migrate_cmd  # noqa: E402
+from papermind.cli.tags import tags_app  # noqa: E402
 
 app.command(name="backfill")(backfill_cmd)
 app.command(name="crawl")(crawl_cmd)
 app.command(name="migrate")(migrate_cmd)
+app.add_typer(tags_app, name="tags")
 
 
 @app.command(name="reindex")

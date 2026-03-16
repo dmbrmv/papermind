@@ -95,15 +95,22 @@ def crawl_cmd(
             console.print(f"\n[dim]── Depth {level}: no new DOIs to process ──[/dim]")
             break
 
+        # Batch-check which DOIs are open-access via OpenAlex
+        oa_dois, closed_count = _filter_open_access(new_dois)
         console.print(
-            f"\n[dim]── Depth {level}: {len(new_dois)} new DOI(s) to resolve ──[/dim]"
+            f"\n[dim]── Depth {level}: {len(oa_dois)} open-access "
+            f"/ {len(new_dois)} total DOIs ──[/dim]"
         )
+
+        if not oa_dois:
+            console.print("[dim]No open-access papers at this depth.[/dim]")
+            break
 
         # Resolve DOIs → download → ingest
         next_level_dois: list[str] = []
         remaining = target - total_ingested
 
-        for doi in new_dois[: remaining * 3]:  # overshoot for yield
+        for doi in oa_dois[: remaining * 2]:  # less overshoot needed
             if total_ingested >= target:
                 break
 
@@ -130,6 +137,76 @@ def crawl_cmd(
         f"\n[bold]{total_ingested} new paper(s) ingested "
         f"into topic '{topic}'[/bold] via citation crawl"
     )
+
+
+def _filter_open_access(dois: list[str]) -> tuple[list[str], int]:
+    """Batch-check DOIs against OpenAlex to find open-access papers.
+
+    Uses the OpenAlex works filter endpoint to check multiple DOIs
+    in batches. Returns OA DOIs sorted by those with PDF URLs first.
+
+    Args:
+        dois: List of DOI strings to check.
+
+    Returns:
+        Tuple of (oa_dois, closed_count).
+    """
+    import httpx
+
+    oa_dois: list[str] = []
+    closed = 0
+    batch_size = 40  # OpenAlex filter supports ~50 DOIs per call
+
+    for i in range(0, len(dois), batch_size):
+        batch = dois[i : i + batch_size]
+        doi_filter = "|".join(f"https://doi.org/{d}" for d in batch)
+
+        try:
+            resp = httpx.get(
+                "https://api.openalex.org/works",
+                params={
+                    "filter": f"doi:{doi_filter}",
+                    "select": "doi,open_access",
+                    "per_page": batch_size,
+                    "mailto": "papermind@users.noreply",
+                },
+                timeout=15,
+            )
+            if resp.status_code != 200:
+                # Fallback: try all DOIs without filtering
+                oa_dois.extend(batch)
+                continue
+
+            data = resp.json()
+            results = data.get("results", [])
+
+            # Build set of OA DOIs from this batch
+            for work in results:
+                oa = work.get("open_access", {}) or {}
+                if oa.get("is_oa"):
+                    doi_url = work.get("doi", "")
+                    doi = doi_url.replace("https://doi.org/", "").replace(
+                        "http://doi.org/", ""
+                    )
+                    if doi:
+                        oa_dois.append(doi)
+
+            # Count closed
+            oa_set = {
+                (w.get("doi") or "").lower()
+                for w in results
+                if (w.get("open_access") or {}).get("is_oa")
+            }
+            for d in batch:
+                normalized = f"https://doi.org/{d}".lower()
+                if normalized not in oa_set:
+                    closed += 1
+
+        except Exception:
+            # On error, include all DOIs (don't lose candidates)
+            oa_dois.extend(batch)
+
+    return oa_dois, closed
 
 
 def _find_paper(kb: Path, paper_id: str) -> dict | None:

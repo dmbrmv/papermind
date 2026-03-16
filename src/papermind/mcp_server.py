@@ -379,7 +379,7 @@ async def _handle_discover(kb_path: Path, args: dict) -> list[TextContent]:
             f"**{r.title}**\n"
             f"Year: {r.year or '?'} | DOI: {r.doi or 'N/A'}"
             f"{' | ' + oa if oa else ''}\n"
-            f"{r.abstract[:200] + '...' if len(r.abstract or '') > 200 else r.abstract or ''}"
+            f"{(r.abstract or '')[:200]}"
         )
     return [TextContent(type="text", text="\n\n---\n\n".join(lines))]
 
