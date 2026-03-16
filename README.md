@@ -18,6 +18,15 @@ pip install hydrofound
 pip install "hydrofound[ocr]"
 ```
 
+> **Note:** GLM-OCR currently requires the transformers dev branch:
+> `pip install "transformers @ git+https://github.com/huggingface/transformers.git"`
+
+**With semantic search (qmd):**
+
+```bash
+npm install -g @tobilu/qmd
+```
+
 **With browser-based package docs:**
 
 ```bash
@@ -25,7 +34,7 @@ pip install "hydrofound[browser]"
 playwright install chromium
 ```
 
-**Requirements:** Python 3.11+, GPU recommended for PDF ingestion, optional: `qmd` (semantic search)
+**Requirements:** Python 3.11+, GPU recommended for PDF ingestion
 
 ## Quick Start
 
@@ -33,19 +42,23 @@ playwright install chromium
 # 1. Create a knowledge base
 hydrofound --kb ~/kb init
 
-# 2. Ingest a paper (PDF or URL)
+# 2. Fetch papers (search + download + OCR + ingest in one step)
+hydrofound --kb ~/kb fetch "SWAT+ calibration machine learning" -n 10 -t swat_ml
+
+# 3. Ingest a local PDF
 hydrofound --kb ~/kb ingest paper path/to/paper.pdf --topic hydrology
 
-# 3. Ingest a Python package's API docs
+# 4. Ingest a Python package's API docs
 hydrofound --kb ~/kb ingest package numpy
 
-# 4. Ingest a codebase
+# 5. Ingest a codebase (Python, Fortran, C, Rust)
 hydrofound --kb ~/kb ingest codebase ~/src/myproject --name myproject
 
-# 5. Search
+# 6. Search
 hydrofound --kb ~/kb search "evapotranspiration calibration"
+hydrofound --kb ~/kb search "SWAT" --topic swat_ml
 
-# 6. Check what's in the KB
+# 7. Check what's in the KB
 hydrofound --kb ~/kb catalog show
 ```
 
@@ -56,15 +69,16 @@ All commands take `--kb <path>` as a global option. Pass `--offline` to disable 
 | Command | Description |
 |---------|-------------|
 | `init` | Initialize a new knowledge base directory |
-| `ingest paper <path\|url>` | Add a paper (PDF, local, or remote URL) |
+| `fetch <query>` | Search + download + OCR + ingest papers in one step |
+| `ingest paper <path>` | Add a paper (PDF) via GLM-OCR |
 | `ingest package <name>` | Extract a PyPI package's API and docs |
 | `ingest codebase <path>` | Walk a source tree (Python, Fortran, C) |
 | `search <query>` | Search the KB (semantic via qmd, or grep fallback) |
 | `catalog show` | List all KB entries |
 | `catalog stats` | Summary statistics by type and topic |
-| `remove <path>` | Remove an entry from the KB |
-| `discover <query>` | Find papers via Semantic Scholar / Exa |
-| `download <url\|doi>` | Download a paper PDF or HTML |
+| `remove <id>` | Remove an entry from the KB |
+| `discover <query>` | Find papers via OpenAlex / Semantic Scholar / Exa |
+| `download <url\|doi>` | Download a paper PDF |
 | `doctor` | Check installed dependencies and tool availability |
 | `reindex` | Rebuild `catalog.json` and `catalog.md` from filesystem |
 | `serve` | Start the MCP server (stdio transport) |
@@ -73,14 +87,14 @@ All commands take `--kb <path>` as a global option. Pass `--offline` to disable 
 ### Examples
 
 ```bash
+# Fetch 10 papers on a topic, auto-download and ingest
+hydrofound --kb ~/kb fetch "differentiable hydrology neural ODE" -n 10 -t diff_hydro
+
 # Ingest multiple papers from a directory
 hydrofound --kb ~/kb ingest paper papers/ --topic swat
 
-# Discover and immediately download open-access papers
-hydrofound --kb ~/kb discover "SWAT+ calibration" --download
-
-# Ingest package with browser (needed for JS-rendered docs)
-hydrofound --kb ~/kb ingest package scipy --browser
+# Search with topic filter
+hydrofound --kb ~/kb search "calibration" --topic swat_ml
 
 # Run fully offline (no network calls at all)
 hydrofound --kb ~/kb --offline search "groundwater recharge"
@@ -89,30 +103,30 @@ hydrofound --kb ~/kb --offline search "groundwater recharge"
 hydrofound --kb ~/kb doctor
 ```
 
+## Paper Discovery
+
+HydroFound searches three academic APIs in parallel:
+
+- **[OpenAlex](https://openalex.org/)** — free, no API key, direct PDF URLs for open-access papers
+- **[Semantic Scholar](https://www.semanticscholar.org/)** — structured metadata, citation counts (optional API key for higher rate limits)
+- **[Exa](https://exa.ai/)** — broad web search (requires API key)
+- **[Unpaywall](https://unpaywall.org/)** — DOI→PDF resolver fallback (free, no key)
+
+## PDF OCR
+
+HydroFound uses [GLM-OCR](https://huggingface.co/zai-org/GLM-OCR) (MIT, 0.9B params, #1 OmniDocBench) for PDF→markdown conversion. Features:
+
+- Runs locally on GPU (RTX 3060+ recommended, ~2GB VRAM)
+- Outputs structured markdown with LaTeX equations
+- Auto-detects section headings (numbered sections, ALL-CAPS)
+- Extracts embedded figures as PNG files alongside the markdown
+- Source PDF copied next to markdown for easy comparison
+
+Install with `pip install "hydrofound[ocr]"`. Model downloaded from HuggingFace on first use (~2GB, cached).
+
 ## MCP Server
 
 HydroFound exposes your KB to AI assistants via the [Model Context Protocol](https://modelcontextprotocol.io/).
-
-**Start the server:**
-
-```bash
-hydrofound --kb /path/to/kb serve
-```
-
-The server uses stdio transport — configure it in your assistant's MCP client config.
-
-**Claude Desktop (`claude_desktop_config.json`):**
-
-```json
-{
-  "mcpServers": {
-    "hydrofound": {
-      "command": "hydrofound",
-      "args": ["--kb", "/path/to/kb", "serve"]
-    }
-  }
-}
-```
 
 **Claude Code (`.claude/mcp.json`):**
 
@@ -131,12 +145,19 @@ The server uses stdio transport — configure it in your assistant's MCP client 
 
 | Tool | Description |
 |------|-------------|
-| `query` | Search the KB; optional `scope` (papers/packages/codebases), `topic`, `limit` |
+| `query` | Search the KB; optional `scope`, `topic`, `limit` |
 | `get` | Read a single document by relative path |
 | `multi_get` | Read multiple documents in one call |
 | `catalog_stats` | KB statistics (counts by type and topic) |
 | `list_topics` | All topics in the KB |
-| `discover_papers` | Search academic APIs (Semantic Scholar / Exa) |
+| `discover_papers` | Search academic APIs |
+
+## Search
+
+Two search backends:
+
+- **[qmd](https://github.com/tobi/qmd)** — hybrid search (BM25 + vector embeddings + LLM reranking). Install: `npm install -g @tobilu/qmd`, then `qmd collection add ~/kb --name my-kb`
+- **Built-in fallback** — grep-based term matching (zero dependencies)
 
 ## Configuration
 
@@ -144,23 +165,23 @@ Each KB has a `.hydrofound/config.toml`. All keys are optional.
 
 ```toml
 [search]
-qmd_path = "qmd"          # path to qmd binary (default: qmd in PATH)
-fallback_search = true    # use grep-based fallback when qmd unavailable
+qmd_path = "qmd"
+fallback_search = true
 
 [apis]
-semantic_scholar_key = "" # optional — higher rate limits
-exa_key = ""              # required for Exa discovery
+semantic_scholar_key = ""
+exa_key = ""
 
 [ingestion]
-ocr_model = "zai-org/GLM-OCR"  # HuggingFace model for PDF OCR
-ocr_dpi = 150                  # DPI for PDF page rendering
+ocr_model = "zai-org/GLM-OCR"
+ocr_dpi = 150
 default_paper_topic = "uncategorized"
 
 [firecrawl]
-api_key = ""              # for JS-heavy package docs without Playwright
+api_key = ""
 
 [privacy]
-offline_only = false      # equivalent to passing --offline on every command
+offline_only = false
 ```
 
 **Environment variables** override config file values:
@@ -170,45 +191,16 @@ offline_only = false      # equivalent to passing --offline on every command
 | `HYDROFOUND_EXA_KEY` | Exa search API key |
 | `HYDROFOUND_SEMANTIC_SCHOLAR_KEY` | Semantic Scholar API key |
 | `HYDROFOUND_FIRECRAWL_KEY` | Firecrawl API key |
-
-## KB Structure
-
-```
-~/kb/
-├── .hydrofound/
-│   └── config.toml
-├── papers/
-│   └── <topic>/
-│       └── <slug>.md       # YAML frontmatter + markdown body
-├── packages/
-│   └── <name>/
-│       └── api.md
-├── codebases/
-│   └── <name>/
-│       └── tree.md
-├── catalog.json             # derived cache — rebuilt by `reindex`
-└── catalog.md               # human-readable index
-```
-
-Markdown files with YAML frontmatter are the source of truth. `catalog.json` is a derived cache and can always be rebuilt with `hydrofound --kb <path> reindex`.
-
-## PDF OCR
-
-HydroFound uses [GLM-OCR](https://huggingface.co/zai-org/GLM-OCR) (MIT, 0.9B params) for PDF→markdown conversion. Install with `pip install "hydrofound[ocr]"`. The model is downloaded from HuggingFace on first use (~2GB, cached).
-
-## External Tools
-
-- **[qmd](https://github.com/simonw/qmd)** (optional) — semantic vector search. Falls back to grep-based search when unavailable.
+| `HF_TOKEN` | HuggingFace token (faster model downloads) |
 
 ## Contributing
 
 ```bash
-git clone https://github.com/your-org/hydrofound
+git clone https://github.com/dmbrmv/hydrofound
 cd hydrofound
 pip install -e ".[dev]"
-pytest tests/ -v
-ruff check src/
-ruff format src/
+uv run pytest tests/ -v
+uv run ruff check src/
 ```
 
 The test suite is fully offline — no network calls, no external tools required.
