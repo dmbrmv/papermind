@@ -11,6 +11,7 @@ from papermind.discovery.base import PaperResult
 logger = logging.getLogger(__name__)
 
 _BASE_URL = "https://api.semanticscholar.org/graph/v1/paper/search"
+_DETAIL_URL = "https://api.semanticscholar.org/graph/v1/paper"
 _FIELDS = (
     "title,authors,year,abstract,externalIds,"
     "isOpenAccess,venue,citationCount,openAccessPdf,"
@@ -134,3 +135,47 @@ class SemanticScholarProvider:
             if doi:
                 dois.append(doi)
         return dois
+
+
+async def lookup_citations_by_doi(
+    doi: str,
+    api_key: str = "",
+    timeout: float = 10.0,
+) -> tuple[list[str], list[str]]:
+    """Look up citation data for a single paper by DOI.
+
+    Uses the Semantic Scholar single-paper detail endpoint which
+    returns full reference/citation data (unlike the search endpoint).
+
+    Args:
+        doi: DOI string (e.g. ``10.1002/hyp.14561``).
+        api_key: Optional SS API key for higher rate limits.
+        timeout: HTTP timeout in seconds.
+
+    Returns:
+        Tuple of (cites, cited_by) — each a list of DOI strings.
+        Returns ([], []) on any error.
+    """
+    if not doi:
+        return [], []
+
+    url = f"{_DETAIL_URL}/DOI:{doi}"
+    params = {"fields": "references.externalIds,citations.externalIds"}
+    headers: dict[str, str] = {}
+    if api_key:
+        headers["x-api-key"] = api_key
+
+    try:
+        async with httpx.AsyncClient(timeout=timeout) as client:
+            resp = await client.get(url, params=params, headers=headers)
+            if resp.status_code != 200:
+                logger.debug("SS detail %s: HTTP %s", doi, resp.status_code)
+                return [], []
+            data = resp.json()
+    except (httpx.RequestError, Exception) as exc:
+        logger.debug("SS detail error for %s: %s", doi, exc)
+        return [], []
+
+    cites = SemanticScholarProvider._extract_dois(data.get("references") or [])
+    cited_by = SemanticScholarProvider._extract_dois(data.get("citations") or [])
+    return cites, cited_by
