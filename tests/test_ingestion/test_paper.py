@@ -403,7 +403,7 @@ class TestTitleSimilarityDedup:
     """Papers whose titles are >90% similar to an existing paper are rejected."""
 
     def test_title_similarity_dedup(self, tmp_path: Path) -> None:
-        """Ingesting a paper with a >90% title match returns None (near-dup rejected)."""
+        """Paper with >90% title match returns None (near-dup)."""
         from papermind.catalog.index import CatalogEntry
 
         kb = _make_kb(tmp_path)

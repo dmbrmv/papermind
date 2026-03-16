@@ -2,9 +2,8 @@
 
 from __future__ import annotations
 
-from papermind.catalog.render import render_catalog_md
-
 from papermind.catalog.index import CatalogEntry
+from papermind.catalog.render import render_catalog_md
 
 
 def test_empty_catalog() -> None:

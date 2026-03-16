@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
+
 from papermind.ingestion.codebase import walk_codebase
 
 

@@ -1,6 +1,6 @@
 """End-to-end integration tests for PaperMind CLI.
 
-These tests exercise full workflows: init → ingest → search → catalog → remove → reindex.
+Full workflows: init → ingest → search → catalog → remove → reindex.
 They use CliRunner (in-process) and mock GLM-OCR where needed.
 """
 

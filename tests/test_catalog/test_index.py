@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
+
 from papermind.catalog.index import CatalogEntry, CatalogIndex
 
 

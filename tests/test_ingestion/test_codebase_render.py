@@ -40,7 +40,7 @@ def sample_map() -> CodebaseMap:
 
 
 def test_render_produces_index(sample_map: CodebaseMap, tmp_path: Path) -> None:
-    files = render_codebase(sample_map, tmp_path)
+    render_codebase(sample_map, tmp_path)
     index = tmp_path / "_index.md"
     assert index.exists()
     content = index.read_text()
