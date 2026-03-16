@@ -116,7 +116,11 @@ def _find_paper_frontmatter(kb: Path, paper_id: str) -> dict | None:
     import frontmatter as fm_lib
 
     for md_file in kb.rglob("*.md"):
-        if md_file.name.startswith(".") or ".papermind" in md_file.parts:
+        if (
+            md_file.name.startswith(".")
+            or ".papermind" in md_file.parts
+            or md_file.name == "catalog.md"
+        ):
             continue
         try:
             post = fm_lib.load(md_file)
@@ -140,7 +144,11 @@ def _build_doi_index(kb: Path) -> dict[str, tuple[str, str]]:
 
     index: dict[str, tuple[str, str]] = {}
     for md_file in kb.rglob("*.md"):
-        if md_file.name.startswith(".") or ".papermind" in md_file.parts:
+        if (
+            md_file.name.startswith(".")
+            or ".papermind" in md_file.parts
+            or md_file.name == "catalog.md"
+        ):
             continue
         try:
             post = fm_lib.load(md_file)
@@ -175,7 +183,11 @@ def _find_reverse_links(
     citers: list[tuple[str, str, str]] = []
 
     for md_file in kb.rglob("*.md"):
-        if md_file.name.startswith(".") or ".papermind" in md_file.parts:
+        if (
+            md_file.name.startswith(".")
+            or ".papermind" in md_file.parts
+            or md_file.name == "catalog.md"
+        ):
             continue
         try:
             post = fm_lib.load(md_file)

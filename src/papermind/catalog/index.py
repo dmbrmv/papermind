@@ -114,7 +114,11 @@ class CatalogIndex:
 
         entries = []
         for md_file in base_path.rglob("*.md"):
-            if md_file.name.startswith(".") or ".papermind" in md_file.parts:
+            if (
+                md_file.name.startswith(".")
+                or ".papermind" in md_file.parts
+                or md_file.name == "catalog.md"
+            ):
                 continue
             try:
                 post = frontmatter.load(md_file)

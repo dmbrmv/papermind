@@ -3,8 +3,12 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import typer
+
+if TYPE_CHECKING:
+    from papermind.config import PaperMindConfig
 from rich.console import Console
 
 app = typer.Typer(
@@ -196,7 +200,7 @@ def _fetch_single_pass(
     no_ingest: bool,
     dry_run: bool,
     kb_path: Path,
-    config: object,
+    config: PaperMindConfig,
 ) -> None:
     """Single-pass fetch: discover → download → ingest."""
     import asyncio
@@ -245,7 +249,7 @@ def _fetch_until_target(
     source: str,
     no_ingest: bool,
     kb_path: Path,
-    config: object,
+    config: PaperMindConfig,
 ) -> None:
     """Keep fetching in batches until target papers are ingested."""
     import asyncio
@@ -271,6 +275,7 @@ def _fetch_until_target(
     total_ingested = 0
     batch_limit = target * 4  # overshoot: ~25% yield expected
     max_discovery = target * 20  # safety cap
+    max_rounds = 10  # hard stop regardless of discovery cap
     total_discovered = 0
 
     console.print(
@@ -283,6 +288,11 @@ def _fetch_until_target(
     round_num = 0
     while total_ingested < target:
         round_num += 1
+        if round_num > max_rounds:
+            console.print(
+                f"[yellow]Reached max rounds ({max_rounds}). Stopping.[/yellow]"
+            )
+            break
         console.print(
             f"\n[dim]── Round {round_num}: discovering up to "
             f"{batch_limit} results ──[/dim]"
@@ -376,7 +386,10 @@ def _print_dry_run_table(results: list) -> None:
     table.add_column("Score", justify="right", no_wrap=True)
     for idx, r in enumerate(results, 1):
         pdf = "[green]yes[/green]" if r.pdf_url else "[red]no[/red]"
-        abstract = (r.abstract[:80] + "...") if len(r.abstract) > 80 else r.abstract
+        raw_abstract = r.abstract or ""
+        abstract = (
+            (raw_abstract[:80] + "...") if len(raw_abstract) > 80 else raw_abstract
+        )
         table.add_row(
             str(idx),
             r.title[:60] if r.title else "(no title)",
@@ -427,7 +440,7 @@ def _ingest_downloaded(
     downloaded: list[tuple],
     topic: str,
     kb_path: Path,
-    config: object,
+    config: PaperMindConfig,
 ) -> int:
     """Ingest downloaded papers, return count of successfully ingested."""
     from papermind.ingestion.paper import ingest_paper

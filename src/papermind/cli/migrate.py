@@ -75,9 +75,16 @@ def migrate_cmd(ctx: typer.Context) -> None:
                     shutil.move(str(img), str(images_dir / img.name))
 
                 # Update image references in paper.md
+                import re
+
                 paper_md = paper_dir / "paper.md"
                 content = paper_md.read_text(encoding="utf-8")
-                content = content.replace(f"{slug}/", "images/")
+                # Only replace inside markdown image syntax: ![...](slug/...)
+                content = re.sub(
+                    rf"(\!\[[^\]]*\]\(){re.escape(slug)}/",
+                    r"\1images/",
+                    content,
+                )
                 paper_md.write_text(content, encoding="utf-8")
 
             migrated += 1

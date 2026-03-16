@@ -144,12 +144,15 @@ async def _handle_query(kb_path: Path, args: dict) -> list[TextContent]:
 
     q = args["q"]
     scope = args.get("scope", "")
+    topic = args.get("topic", "")
     limit = args.get("limit", 10)
 
     if is_qmd_available():
         results = qmd_search(kb_path, q, scope=scope or "", limit=limit)
     else:
-        results = fallback_search(kb_path, q, scope=scope or None, limit=limit)
+        results = fallback_search(
+            kb_path, q, scope=scope or None, topic=topic or None, limit=limit
+        )
 
     if not results:
         return [TextContent(type="text", text="No results found.")]

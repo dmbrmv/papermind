@@ -268,3 +268,7 @@ def _merge_into(target: PaperResult, source: PaperResult) -> None:
         target.year = source.year
     if not target.authors and source.authors:
         target.authors = source.authors
+    if not target.cites and source.cites:
+        target.cites = source.cites
+    if not target.cited_by and source.cited_by:
+        target.cited_by = source.cited_by
