@@ -372,18 +372,12 @@ def _handle_list_topics(kb_path: Path) -> list[TextContent]:
 async def _handle_discover(kb_path: Path, args: dict) -> list[TextContent]:
     """Search academic APIs."""
     from papermind.config import load_config
-    from papermind.discovery.exa import ExaProvider
     from papermind.discovery.orchestrator import discover_papers
-    from papermind.discovery.semantic_scholar import SemanticScholarProvider
+    from papermind.discovery.providers import build_providers
 
     config = load_config(kb_path)
-    providers = []
-
     source = args.get("source", "all")
-    if source in ("all", "semantic_scholar"):
-        providers.append(SemanticScholarProvider(api_key=config.semantic_scholar_key))
-    if source in ("all", "exa") and config.exa_key:
-        providers.append(ExaProvider(api_key=config.exa_key))
+    providers = build_providers(source, config)
 
     if not providers:
         return [

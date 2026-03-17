@@ -277,8 +277,9 @@ def _resolve_and_ingest_doi(
     Returns (CatalogEntry, cites, cited_by) on success, None on failure.
     """
     from papermind.discovery.downloader import download_paper
-    from papermind.discovery.openalex import resolve_pdf_url_openalex
-    from papermind.discovery.semantic_scholar import lookup_citations_by_doi
+    from papermind.discovery.openalex import (
+        resolve_pdf_url_openalex,
+    )
     from papermind.discovery.unpaywall import resolve_pdf_url
     from papermind.ingestion.paper import ingest_paper
 
@@ -301,8 +302,10 @@ def _resolve_and_ingest_doi(
         console.print(f"  [dim]FAIL[/dim] {doi} — download failed")
         return None
 
-    # Get citation data from SS
-    cites, cited_by = asyncio.run(lookup_citations_by_doi(doi))
+    # Get citation data from OpenAlex
+    from papermind.discovery.openalex import lookup_citations_openalex
+
+    cites, cited_by = asyncio.run(lookup_citations_openalex(doi))
 
     # Ingest
     try:

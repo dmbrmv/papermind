@@ -163,3 +163,138 @@ async def resolve_pdf_url_openalex(
     loc = data.get("primary_location", {}) or {}
     pdf_url = loc.get("pdf_url", "") or oa.get("oa_url", "") or ""
     return pdf_url or None
+
+
+async def lookup_citations_openalex(
+    doi: str,
+    timeout: float = 10.0,
+) -> tuple[list[str], list[str]]:
+    """Look up citation data for a paper by DOI via OpenAlex.
+
+    Returns referenced work DOIs and citing work DOIs.
+    Free API, no key needed.
+
+    Args:
+        doi: DOI string.
+        timeout: HTTP timeout in seconds.
+
+    Returns:
+        Tuple of (cites, cited_by) — each a list of DOI strings.
+    """
+    if not doi:
+        return [], []
+
+    url = f"{_BASE_URL}/doi:{doi}"
+    params = {
+        "mailto": _MAILTO,
+        "select": "referenced_works,cited_by_api_url",
+    }
+
+    try:
+        async with httpx.AsyncClient(timeout=timeout, follow_redirects=True) as client:
+            resp = await client.get(url, params=params)
+            if resp.status_code != 200:
+                return [], []
+            data = resp.json()
+
+            # Extract referenced DOIs
+            cites: list[str] = []
+            for ref_url in data.get("referenced_works", []):
+                # OpenAlex URLs: https://openalex.org/W1234567890
+                # Need to resolve to DOI via another call — too expensive
+                # Instead, extract DOI from the URL if available
+                pass
+
+            # For referenced_works, we need to batch-resolve to DOIs
+            ref_urls = data.get("referenced_works", [])
+            if ref_urls:
+                cites = await _resolve_openalex_ids_to_dois(
+                    client,
+                    ref_urls[:50],  # cap at 50
+                )
+
+            # cited_by requires a separate API call
+            cited_by_url = data.get("cited_by_api_url", "")
+            cited_by: list[str] = []
+            if cited_by_url:
+                cited_by = await _fetch_citing_dois(client, cited_by_url)
+
+    except (httpx.RequestError, Exception):
+        return [], []
+
+    return cites, cited_by
+
+
+async def _resolve_openalex_ids_to_dois(
+    client: httpx.AsyncClient,
+    openalex_urls: list[str],
+) -> list[str]:
+    """Resolve OpenAlex work IDs to DOIs in a single batch call."""
+    # Extract IDs from URLs: https://openalex.org/W123 → W123
+    ids = []
+    for url in openalex_urls:
+        if "/W" in url:
+            wid = url.split("/")[-1]
+            ids.append(wid)
+
+    if not ids:
+        return []
+
+    # Batch lookup: filter by openalex IDs
+    id_filter = "|".join(ids[:50])
+    try:
+        resp = await client.get(
+            _BASE_URL,
+            params={
+                "filter": f"openalex:{id_filter}",
+                "select": "doi",
+                "per_page": 50,
+                "mailto": _MAILTO,
+            },
+        )
+        if resp.status_code != 200:
+            return []
+        data = resp.json()
+        dois: list[str] = []
+        for work in data.get("results", []):
+            doi_url = work.get("doi", "")
+            if doi_url:
+                doi = doi_url.replace("https://doi.org/", "").replace(
+                    "http://doi.org/", ""
+                )
+                if doi:
+                    dois.append(doi)
+        return dois
+    except Exception:
+        return []
+
+
+async def _fetch_citing_dois(
+    client: httpx.AsyncClient,
+    cited_by_url: str,
+) -> list[str]:
+    """Fetch DOIs of papers citing this work."""
+    try:
+        resp = await client.get(
+            cited_by_url,
+            params={
+                "select": "doi",
+                "per_page": 50,
+                "mailto": _MAILTO,
+            },
+        )
+        if resp.status_code != 200:
+            return []
+        data = resp.json()
+        dois: list[str] = []
+        for work in data.get("results", []):
+            doi_url = work.get("doi", "")
+            if doi_url:
+                doi = doi_url.replace("https://doi.org/", "").replace(
+                    "http://doi.org/", ""
+                )
+                if doi:
+                    dois.append(doi)
+        return dois
+    except Exception:
+        return []

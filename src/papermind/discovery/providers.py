@@ -21,10 +21,9 @@ def build_providers(
     """
     from papermind.discovery.exa import ExaProvider
     from papermind.discovery.openalex import OpenAlexProvider
-    from papermind.discovery.semantic_scholar import SemanticScholarProvider
 
     want_oa = source in ("all", "openalex")
-    want_ss = source in ("all", "semantic_scholar")
+    want_ss = source == "semantic_scholar"  # only when explicitly requested
     want_exa = source in ("all", "exa")
 
     providers: list[SearchProvider] = []
@@ -32,7 +31,9 @@ def build_providers(
     if want_oa:
         providers.append(OpenAlexProvider())
 
-    if want_ss:
+    if want_ss and config.semantic_scholar_key:
+        from papermind.discovery.semantic_scholar import SemanticScholarProvider
+
         providers.append(SemanticScholarProvider(api_key=config.semantic_scholar_key))
 
     if want_exa and config.exa_key:

@@ -92,13 +92,11 @@ def backfill_cmd(ctx: typer.Context) -> None:
         )
         enriched += 1
 
-    console.print(f"\n[bold]{enriched} enriched[/bold], {failed} skipped (no SS data)")
+    console.print(f"\n[bold]{enriched} enriched[/bold], {failed} skipped (no data)")
 
 
 async def _lookup_one(doi: str) -> tuple[list[str], list[str]]:
-    """Look up citations for a single DOI."""
-    from papermind.discovery.semantic_scholar import (
-        lookup_citations_by_doi,
-    )
+    """Look up citations for a single DOI via OpenAlex."""
+    from papermind.discovery.openalex import lookup_citations_openalex
 
-    return await lookup_citations_by_doi(doi)
+    return await lookup_citations_openalex(doi)
