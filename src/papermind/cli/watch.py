@@ -28,7 +28,7 @@ def watch_cmd(
         papermind watch src/hydrohub/swat_diff/models/groundwater.py
         papermind watch calibration/optuna_optimizer.py --limit 3
     """
-    from papermind.watch import format_watch_output, watch_file
+    from papermind.watch import check_pitfalls, format_watch_output, watch_file
 
     kb = _resolve_kb(ctx)
     resolved = file.resolve()
@@ -38,5 +38,6 @@ def watch_cmd(
         raise typer.Exit(code=1)
 
     results = watch_file(resolved, kb, limit=limit)
-    output = format_watch_output(resolved.name, results)
+    pitfalls = check_pitfalls(resolved, kb)
+    output = format_watch_output(resolved.name, results, pitfalls)
     typer.echo(output)

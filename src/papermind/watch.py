@@ -139,12 +139,72 @@ def watch_file(
     return fallback_search(kb_path, query, limit=limit)
 
 
-def format_watch_output(source_name: str, results: list) -> str:
+def check_pitfalls(
+    source_path: Path,
+    kb_path: Path,
+) -> list[dict]:
+    """Check if any KB pitfall patterns match the source file.
+
+    Args:
+        source_path: Path to source code file.
+        kb_path: Knowledge base root.
+
+    Returns:
+        List of dicts with paper_id, pattern, warning for each match.
+    """
+    try:
+        source = source_path.read_text(encoding="utf-8", errors="replace")
+    except Exception:
+        return []
+
+    import frontmatter as fm_lib
+
+    matches: list[dict] = []
+    papers_dir = kb_path / "papers"
+    if not papers_dir.exists():
+        return []
+
+    for md_file in papers_dir.rglob("*.md"):
+        if md_file.name == "catalog.md":
+            continue
+        try:
+            post = fm_lib.load(md_file)
+            pitfalls = post.metadata.get("pitfalls", [])
+            pid = post.metadata.get("id", "")
+            for pf in pitfalls:
+                pattern = pf.get("pattern", "")
+                if pattern and re.search(pattern, source, re.IGNORECASE):
+                    matches.append(
+                        {
+                            "paper_id": pid,
+                            "pattern": pattern,
+                            "warning": pf.get("warning", ""),
+                        }
+                    )
+        except Exception:
+            continue
+
+    return matches
+
+
+def format_watch_output(
+    source_name: str,
+    results: list,
+    pitfalls: list[dict] | None = None,
+) -> str:
     """Format watch results in compact scan-tier style."""
-    if not results:
+    lines: list[str] = []
+
+    # Pitfall warnings first (highest priority)
+    if pitfalls:
+        for pf in pitfalls:
+            lines.append(f"WARNING: {pf['warning']} [{pf['paper_id']}]")
+        lines.append("")
+
+    if not results and not pitfalls:
         return f"# watch: {source_name} → no matches"
 
-    lines = [f"# watch: {source_name} → {len(results)} match(es)"]
+    lines.insert(0, f"# watch: {source_name} → {len(results)} match(es)")
     for i, r in enumerate(results, 1):
         lines.append(f"{i}. [{r.score:.1f}] {r.title} — {r.path}")
     return "\n".join(lines)

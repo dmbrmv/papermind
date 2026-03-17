@@ -80,10 +80,13 @@ app.command(name="migrate")(migrate_cmd)
 app.add_typer(tags_app, name="tags")
 
 from papermind.cli.chat import chat_cmd  # noqa: E402
+from papermind.cli.pitfall import pitfall_add_cmd, pitfall_list_cmd  # noqa: E402
 from papermind.cli.tables import tables_app  # noqa: E402
 from papermind.cli.watch import watch_cmd  # noqa: E402
 
 app.command(name="chat")(chat_cmd)
+app.command(name="pitfall-add")(pitfall_add_cmd)
+app.command(name="pitfall-list")(pitfall_list_cmd)
 app.add_typer(tables_app, name="tables")
 app.command(name="watch")(watch_cmd)
 
