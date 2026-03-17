@@ -67,17 +67,17 @@ def search_command(
     if is_qmd_available():
         try:
             results = qmd_search(kb, query, scope=effective_scope, limit=limit)
-        except RuntimeError as exc:
-            console.print(f"[red]qmd error:[/red] {exc}")
-            raise typer.Exit(code=1) from exc
-        if not results:
-            console.print(f"[yellow]No results found for:[/yellow] {query!r}")
+        except RuntimeError:
+            results = []
+
+        if results:
+            _print_results_table(query, results)
             return
-        _print_results_table(query, results)
-    else:
-        _run_fallback_search(
-            kb, query, scope=effective_scope, year_from=year, limit=limit
-        )
+
+        # qmd returned nothing — try fallback before giving up
+        console.print("[dim]qmd: no results, trying fallback...[/dim]")
+
+    _run_fallback_search(kb, query, scope=effective_scope, year_from=year, limit=limit)
 
 
 def _print_results_table(query: str, results: list) -> None:
