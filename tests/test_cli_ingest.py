@@ -135,3 +135,69 @@ def test_ingest_codebase_invalid_path_exits_nonzero(tmp_path: Path) -> None:
         ],
     )
     assert result.exit_code != 0
+
+
+# ---------------------------------------------------------------------------
+# Markdown ingestion CLI tests
+# ---------------------------------------------------------------------------
+
+
+def test_ingest_markdown_single_file(tmp_path: Path) -> None:
+    """A single .md file is ingested via CLI."""
+    kb = tmp_path / "kb"
+    runner.invoke(app, ["init", str(kb)])
+
+    md = tmp_path / "paper.md"
+    md.write_text("# Green-Ampt Model Review (2020)\n\nDOI: 10.1234/ga.\n\nContent.\n")
+
+    result = runner.invoke(
+        app,
+        ["--kb", str(kb), "ingest", "paper", str(md), "--topic", "hydrology"],
+    )
+    assert result.exit_code == 0
+    assert "Ingested" in result.output
+
+    catalog = json.loads((kb / "catalog.json").read_text())
+    assert len(catalog) == 1
+    assert catalog[0]["type"] == "paper"
+
+
+def test_ingest_markdown_with_frontmatter(tmp_path: Path) -> None:
+    """Markdown with YAML frontmatter has metadata respected."""
+    kb = tmp_path / "kb"
+    runner.invoke(app, ["init", str(kb)])
+
+    md = tmp_path / "obsidian-note.md"
+    md.write_text(
+        "---\n"
+        "title: My Obsidian Note on Hydrology\n"
+        "doi: 10.9999/obsidian\n"
+        "year: 2023\n"
+        "---\n\n"
+        "# Body\n\nThis is a note exported from Obsidian.\n"
+    )
+
+    result = runner.invoke(
+        app,
+        ["--kb", str(kb), "ingest", "paper", str(md), "--topic", "hydrology"],
+    )
+    assert result.exit_code == 0
+    assert "My Obsidian Note on Hydrology" in result.output
+
+
+def test_ingest_markdown_batch(tmp_path: Path) -> None:
+    """Batch mode picks up .md files from a directory."""
+    kb = tmp_path / "kb"
+    runner.invoke(app, ["init", str(kb)])
+
+    batch_dir = tmp_path / "notes"
+    batch_dir.mkdir()
+    (batch_dir / "note1.md").write_text("# First Note\n\nContent of first.\n")
+    (batch_dir / "note2.md").write_text("# Second Note\n\nContent of second.\n")
+
+    result = runner.invoke(
+        app,
+        ["--kb", str(kb), "ingest", "paper", str(batch_dir), "--topic", "general"],
+    )
+    assert result.exit_code == 0
+    assert "2" in result.output  # 2 ingested

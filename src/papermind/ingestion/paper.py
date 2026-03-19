@@ -1,4 +1,4 @@
-"""Paper ingestion — PDF → markdown via GLM-OCR."""
+"""Paper ingestion — PDF → markdown via GLM-OCR, or direct markdown ingest."""
 
 from __future__ import annotations
 
@@ -10,9 +10,11 @@ from papermind.catalog.index import CatalogEntry, CatalogIndex
 from papermind.catalog.render import render_catalog_md
 from papermind.config import PaperMindConfig
 from papermind.ingestion.common import build_frontmatter, generate_id
-from papermind.ingestion.validation import validate_pdf
+from papermind.ingestion.validation import validate_markdown, validate_pdf
 
 logger = logging.getLogger(__name__)
+
+_MARKDOWN_EXTENSIONS = {".md", ".markdown"}
 
 
 def convert_pdf(
@@ -93,8 +95,23 @@ def extract_metadata(markdown: str) -> dict:
     return metadata
 
 
+def _read_markdown_source(path: Path) -> tuple[str, dict]:
+    """Read a markdown file, separating content from any existing frontmatter.
+
+    Args:
+        path: Path to the markdown file.
+
+    Returns:
+        Tuple of (markdown_body, frontmatter_metadata).
+    """
+    import frontmatter as fm_lib
+
+    post = fm_lib.load(path)
+    return post.content, dict(post.metadata)
+
+
 def ingest_paper(
-    pdf_path: Path,
+    source_path: Path,
     topic: str,
     kb_path: Path,
     config: PaperMindConfig,
@@ -106,12 +123,12 @@ def ingest_paper(
 ) -> CatalogEntry | None:
     """Full paper ingestion pipeline.
 
-    Validates the PDF, converts it to markdown via GLM-OCR, extracts metadata,
-    checks for duplicate DOIs (immutable policy), writes the markdown file with
-    YAML frontmatter, and updates catalog.json and catalog.md.
+    Accepts PDF files (converted via GLM-OCR) or markdown files (ingested
+    directly).  For markdown input, existing YAML frontmatter is respected —
+    title, DOI, year, and abstract are read from it when present.
 
     Args:
-        pdf_path: Path to PDF file.
+        source_path: Path to PDF or markdown file.
         topic: Topic category for the paper.
         kb_path: Knowledge base root.
         config: PaperMind configuration.
@@ -125,15 +142,25 @@ def ingest_paper(
     """
     import frontmatter
 
-    validate_pdf(pdf_path)
+    is_markdown = source_path.suffix.lower() in _MARKDOWN_EXTENSIONS
 
-    # First pass: OCR without images to get metadata for path resolution
-    markdown = convert_pdf(pdf_path, config)
+    if is_markdown:
+        validate_markdown(source_path)
+        markdown, existing_fm = _read_markdown_source(source_path)
+    else:
+        validate_pdf(source_path)
+        markdown = convert_pdf(source_path, config)
+        existing_fm = {}
 
+    # Extract metadata from markdown body (regex-based)
     meta = extract_metadata(markdown)
-    title = meta.get("title", pdf_path.stem)
-    doi = meta.get("doi", "")
-    year = meta.get("year")
+
+    # Existing frontmatter takes precedence over regex extraction
+    title = existing_fm.get("title") or meta.get("title", source_path.stem)
+    doi = existing_fm.get("doi") or meta.get("doi", "")
+    year = existing_fm.get("year") or meta.get("year")
+    if not abstract:
+        abstract = existing_fm.get("abstract", "")
 
     # Immutable policy: same DOI is a no-op.
     catalog = CatalogIndex(kb_path)
@@ -163,18 +190,19 @@ def ingest_paper(
 
     md_path = paper_dir / "paper.md"
 
-    # Extract embedded images (figures, charts) — best effort
-    try:
-        from papermind.ingestion.glm_ocr import extract_images
+    # Extract embedded images from PDF (figures, charts) — best effort
+    if not is_markdown:
+        try:
+            from papermind.ingestion.glm_ocr import extract_images
 
-        image_dir = paper_dir / "images"
-        image_files = extract_images(pdf_path, image_dir)
-        if image_files:
-            markdown += "\n\n---\n\n## Figures\n\n"
-            for img_name in image_files:
-                markdown += f"![{img_name}](images/{img_name})\n\n"
-    except Exception:  # noqa: BLE001
-        logger.debug("Image extraction skipped for %s", pdf_path.name)
+            image_dir = paper_dir / "images"
+            image_files = extract_images(source_path, image_dir)
+            if image_files:
+                markdown += "\n\n---\n\n## Figures\n\n"
+                for img_name in image_files:
+                    markdown += f"![{img_name}](images/{img_name})\n\n"
+        except Exception:  # noqa: BLE001
+            logger.debug("Image extraction skipped for %s", source_path.name)
 
     fm = build_frontmatter(
         type="paper",
@@ -192,12 +220,15 @@ def ingest_paper(
     post.metadata = fm
     md_path.write_text(frontmatter.dumps(post))
 
-    # Copy source PDF into the paper directory
+    # Copy source file into the paper directory
     import shutil
 
-    pdf_copy = paper_dir / "original.pdf"
-    if not pdf_copy.exists():
-        shutil.copy2(pdf_path, pdf_copy)
+    if is_markdown:
+        original_copy = paper_dir / "original.md"
+    else:
+        original_copy = paper_dir / "original.pdf"
+    if not original_copy.exists():
+        shutil.copy2(source_path, original_copy)
 
     entry = CatalogEntry(
         id=entry_id,
@@ -246,19 +277,19 @@ def ingest_papers_batch(
     kb_path: Path,
     config: PaperMindConfig,
 ) -> BatchResult:
-    """Ingest all PDF files in *folder* into the knowledge base.
+    """Ingest all PDF and markdown files in *folder* into the knowledge base.
 
-    Walks *folder* recursively for ``*.pdf`` files.  Each file is processed
-    individually; errors are logged and counted rather than propagated so that
-    the remaining files are always attempted.  A single qmd reindex is issued
-    at the end (not once per file).
+    Walks *folder* recursively for ``*.pdf``, ``*.md``, and ``*.markdown``
+    files.  Each file is processed individually; errors are logged and counted
+    rather than propagated so that the remaining files are always attempted.
+    A single qmd reindex is issued at the end (not once per file).
 
     Duplicate-DOI detection follows the same immutable policy as
     :func:`ingest_paper`: a paper whose DOI already exists in the catalog is
     silently skipped and counted as *skipped*.
 
     Args:
-        folder: Directory to walk for ``*.pdf`` files.
+        folder: Directory to walk for paper files.
         topic: Topic category applied to every ingested paper.
         kb_path: Knowledge base root.
         config: PaperMind configuration.
@@ -268,29 +299,33 @@ def ingest_papers_batch(
     """
     result = BatchResult()
 
-    pdf_paths = sorted(folder.rglob("*.pdf"))
-    logger.info("Batch ingestion: found %d PDF(s) in %s", len(pdf_paths), folder)
+    source_paths = sorted(
+        p
+        for p in folder.rglob("*")
+        if p.suffix.lower() in (".pdf", ".md", ".markdown") and p.is_file()
+    )
+    logger.info("Batch ingestion: found %d file(s) in %s", len(source_paths), folder)
 
-    for pdf_path in pdf_paths:
+    for source_path in source_paths:
         try:
             entry = ingest_paper(
-                pdf_path,
+                source_path,
                 topic,
                 kb_path,
                 config,
                 no_reindex=True,  # Reindex once at end of batch
             )
         except Exception as exc:  # noqa: BLE001
-            logger.error("Failed to ingest %s: %s", pdf_path.name, exc)
+            logger.error("Failed to ingest %s: %s", source_path.name, exc)
             result.failed += 1
-            result.errors[pdf_path] = str(exc)
+            result.errors[source_path] = str(exc)
             continue
 
         if entry is None:
-            logger.info("Skipped %s (duplicate DOI).", pdf_path.name)
+            logger.info("Skipped %s (duplicate).", source_path.name)
             result.skipped += 1
         else:
-            logger.info("Ingested %s as %r.", pdf_path.name, entry.id)
+            logger.info("Ingested %s as %r.", source_path.name, entry.id)
             result.ingested += 1
 
     # Single reindex at end of batch (only if anything was actually ingested).

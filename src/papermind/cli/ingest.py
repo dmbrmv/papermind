@@ -93,7 +93,8 @@ def ingest_codebase(
 def ingest_paper_cmd(
     ctx: typer.Context,
     path: Path = typer.Argument(
-        ..., help="Path to a PDF file or a directory of PDFs (batch mode)."
+        ...,
+        help=("Path to a PDF or markdown file, or a directory of papers (batch mode)."),
     ),
     topic: str = typer.Option(
         "uncategorized",
@@ -107,13 +108,15 @@ def ingest_paper_cmd(
         help="Skip qmd reindex after ingestion.",
     ),
 ) -> None:
-    """Ingest a PDF paper (or a folder of PDFs) into the knowledge base.
+    """Ingest a paper (PDF or markdown) into the knowledge base.
 
-    When *path* is a directory, all ``*.pdf`` files found recursively are
-    ingested.  Duplicates (by DOI) are skipped; individual failures are logged
-    but do not abort the batch.  A single reindex is issued at the end.
+    Accepts ``.pdf``, ``.md``, and ``.markdown`` files.  Markdown files are
+    ingested directly — no OCR needed.  Existing YAML frontmatter in markdown
+    files is respected (title, DOI, year, abstract).
 
-    When *path* is a file, a single paper is ingested (original behaviour).
+    When *path* is a directory, all supported files found recursively are
+    ingested.  Duplicates (by DOI or title similarity) are skipped; individual
+    failures are logged but do not abort the batch.
     """
     from papermind.config import load_config
     from papermind.ingestion.paper import ingest_paper, ingest_papers_batch
@@ -136,8 +139,8 @@ def ingest_paper_cmd(
             f"[yellow]{result.skipped}[/yellow] skipped, "
             f"[red]{result.failed}[/red] failed"
         )
-        for pdf_path, error in result.errors.items():
-            console.print(f"  [red]ERROR[/red] {pdf_path.name}: {error}")
+        for err_path, error in result.errors.items():
+            console.print(f"  [red]ERROR[/red] {err_path.name}: {error}")
         return
 
     # ---- Single-file mode ------------------------------------------------------
@@ -161,7 +164,7 @@ def ingest_paper_cmd(
 
     if entry is None:
         console.print(
-            "[yellow]Skipped[/yellow] — a paper with the same DOI already exists."
+            "[yellow]Skipped[/yellow] — a paper with the same DOI or title already exists."
         )
         raise typer.Exit(code=0)
 
