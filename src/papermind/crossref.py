@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 def compute_cross_refs(
     kb_path: Path,
     *,
-    min_score: float = 0.15,
+    min_score: float = 0.05,
     max_related: int = 5,
 ) -> dict[str, list[tuple[str, float]]]:
     """Compute keyword-based cross-references for all papers.
@@ -64,7 +64,7 @@ def compute_cross_refs(
 def backfill_cross_refs(
     kb_path: Path,
     *,
-    min_score: float = 0.15,
+    min_score: float = 0.05,
     max_related: int = 5,
 ) -> int:
     """Compute cross-refs and write them to paper frontmatter.

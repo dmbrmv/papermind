@@ -16,7 +16,7 @@ def crossref_cmd(
         False, "--save", help="Write keyword_related to paper frontmatter."
     ),
     min_score: float = typer.Option(
-        0.15, "--min-score", help="Minimum Jaccard similarity threshold (0-1)."
+        0.05, "--min-score", help="Minimum Jaccard similarity threshold (0-1)."
     ),
 ) -> None:
     """Compute keyword-based cross-references between papers.
