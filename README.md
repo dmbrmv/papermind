@@ -97,6 +97,9 @@ All commands accept `--kb <path>` as a global option. Pass `--offline` to disabl
 | `resolve <file>` | Resolve `kb:paper-id` references in markdown |
 | `validate-refs <file>` | Check all `kb:` references exist in KB |
 | `verify <file>` | Verify code implements a paper equation |
+| `cite "claim"` | Find papers supporting a claim (KB + OpenAlex) |
+| `bib-gap <draft>` | Find uncited claims in a paper draft |
+| `respond "comment"` | Find evidence for reviewer responses |
 | `export-bibtex` | Export paper citations as BibTeX |
 | `reindex` | Rebuild `catalog.json` and `catalog.md` from the filesystem |
 | `remove <id>` | Remove an entry and its files from the KB |
@@ -175,7 +178,7 @@ PaperMind exposes your KB to AI assistants via the [Model Context Protocol](http
 }
 ```
 
-**Available MCP tools (19 total):**
+**Available MCP tools (21 total):**
 
 | Tool | Category | Description |
 |------|----------|-------------|
@@ -197,6 +200,8 @@ PaperMind exposes your KB to AI assistants via the [Model Context Protocol](http
 | `session_create` | Sessions | Create a research session |
 | `session_add` | Sessions | Add finding to a session |
 | `session_read` | Sessions | Read session findings |
+| `find_references` | Writing | Find papers supporting a claim |
+| `bib_gap_analysis` | Writing | Find uncited claims in a draft |
 
 ---
 
@@ -271,6 +276,7 @@ Paper frontmatter carries structured metadata: title, DOI, authors, year, topic,
 - **REST API**: FastAPI HTTP layer with OpenAPI docs, CORS, and write serialization
 - **Reports**: structured topic overviews with paper inventory, keyword taxonomy, and coverage analysis
 - **Cross-references**: keyword-based paper relationships (Jaccard on TF-IDF tags)
+- **Scientific writing**: `cite` (find refs for claims), `bib-gap` (draft analysis), `respond` (reviewer evidence)
 
 ---
 
@@ -325,6 +331,7 @@ offline_only = false
 | v1.7.0 | 2026-03-19 | Markdown ingestion, `explain`, `report`, `crossref`, Claude Code skill, qmd search fixed |
 | v2.0.0 | 2026-03-19 | Code-paper bridge: `provenance`, `equation-map`, `verify`, `profile`, `resolve`, `sessions`, `api-diff`. 19 MCP tools, 571 tests |
 | v3.0.0 | 2026-03-19 | REST API (FastAPI), 15 HTTP endpoints, OpenAPI docs, 599 tests |
+| v3.1.0 | 2026-03-19 | SQLite, Web UI, KB sharing, reference tools (cite/bib-gap/respond), MCP split, 638 tests |
 
 ---
 

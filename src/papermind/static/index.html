@@ -63,6 +63,11 @@ main{overflow-y:auto;padding:24px 32px}
 .explain-box .range{font-family:var(--mono);font-size:13px;color:var(--accent2)}
 .explain-box .ref{font-size:12px;color:var(--fg2);margin-top:8px;font-style:italic}
 
+@media(max-width:768px){
+  .app{grid-template-columns:1fr}
+  .sidebar{display:none}
+  main{padding:16px}
+}
 .empty{text-align:center;padding:60px 20px;color:var(--fg2);font-style:italic}
 .loading{text-align:center;padding:40px;color:var(--fg2);font-family:var(--mono);font-size:12px}
 </style>
@@ -292,12 +297,55 @@ async function loadSessions(){
       meta.style.cssText='font-family:var(--mono);font-size:11px;color:var(--fg2)';
       meta.textContent=`${s.entry_count} entries \u00b7 ${s.closed?'closed':'open'} \u00b7 ${(s.created||'').split('T')[0]}`;
       item.appendChild(name);item.appendChild(meta);
+      item.style.cursor='pointer';
+      item.addEventListener('click',()=>showSessionDetail(s.id));
       m.appendChild(item);
     }
   }catch(e){
     const err=document.createElement('div');err.className='empty';
     err.textContent='Error: '+e.message;m.appendChild(err);
   }
+}
+
+async function showSessionDetail(sid){
+  const m=document.getElementById('main');
+  m.textContent='Loading...';
+  try{
+    const data=await api(`/sessions/${encodeURIComponent(sid)}`);
+    m.textContent='';
+    const back=document.createElement('button');
+    back.className='back';back.textContent='\u2190 Back to sessions';
+    back.style.cssText='font-family:var(--mono);font-size:11px;color:var(--fg2);cursor:pointer;border:none;background:none;margin-bottom:16px;display:block';
+    back.addEventListener('click',()=>showView('sessions'));
+    m.appendChild(back);
+    const h2=document.createElement('h2');
+    h2.textContent=data.name;h2.style.marginBottom='8px';m.appendChild(h2);
+    const status=document.createElement('div');
+    status.style.cssText='font-family:var(--mono);font-size:11px;color:var(--fg2);margin-bottom:20px';
+    status.textContent=`${data.entries.length} entries \u00b7 ${data.closed?'closed':'open'} \u00b7 ${(data.created||'').split('T')[0]}`;
+    m.appendChild(status);
+    if(!data.entries.length){
+      const e=document.createElement('div');e.className='empty';
+      e.textContent='No entries yet.';m.appendChild(e);return;
+    }
+    for(const entry of data.entries){
+      const card=document.createElement('div');
+      card.style.cssText='padding:12px 16px;background:var(--bg2);border-radius:4px;margin:8px 0;border-left:3px solid var(--accent)';
+      const agent=document.createElement('div');
+      agent.style.cssText='font-family:var(--mono);font-size:11px;color:var(--accent2);margin-bottom:4px';
+      agent.textContent=`${entry.agent} \u00b7 ${(entry.timestamp||'').split('T')[0]}`;
+      const content=document.createElement('div');
+      content.textContent=entry.content;
+      card.appendChild(agent);card.appendChild(content);
+      if(entry.tags&&entry.tags.length){
+        const tags=document.createElement('div');
+        tags.style.cssText='font-family:var(--mono);font-size:10px;color:var(--fg2);margin-top:4px';
+        tags.textContent='tags: '+entry.tags.join(', ');
+        card.appendChild(tags);
+      }
+      m.appendChild(card);
+    }
+  }catch(e){m.textContent='Error: '+e.message;}
 }
 
 function showExplainView(){

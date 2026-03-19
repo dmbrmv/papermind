@@ -231,6 +231,29 @@ Read accumulated findings (optionally filtered by tag).
 | Verify implementation | `verify_implementation` with paper + equation + code |
 | Multi-agent research | `session_create` → sub-agents `session_add` → `session_read` |
 
+### Scientific Writing Tools
+
+#### `find_references`
+Find papers supporting a claim. KB first, OpenAlex fallback.
+
+```json
+{
+  "claim": "SWAT+ has been widely used for watershed modeling",
+  "limit": 5,
+  "search_external": true
+}
+```
+
+#### `bib_gap_analysis`
+Analyze a paper draft for claims missing citations.
+
+```json
+{
+  "file_path": "/path/to/draft.md",
+  "search_external": true
+}
+```
+
 ## Writing Good Queries
 
 **Be specific.** "SWAT+ calibration CMA-ES sensitivity" beats "calibration methods".

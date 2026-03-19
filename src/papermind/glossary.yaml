@@ -222,3 +222,135 @@ HRU:
   unit: null
   related: [SWAT, sub-basin, land_use, soil, slope]
   ref: "Arnold et al. (1998); Neitsch et al. (2011) Ch. 1"
+
+TIMP:
+  name: Snow Pack Temperature Lag Factor
+  definition: >
+    Controls the influence of the current day's temperature on
+    updating the snow pack temperature. Values close to 1.0 give
+    more weight to the current day; values close to 0.0 give
+    more weight to the previous snow pack temperature.
+  range: [0.01, 1.0]
+  unit: dimensionless
+  related: [snow, snowmelt, temperature, SFTMP]
+  ref: "Neitsch et al. (2011) Ch. 5"
+
+SOL_BD:
+  name: Moist Bulk Density (SOL_BD)
+  definition: >
+    Soil bulk density of the layer. Used to calculate porosity
+    and affects water storage capacity calculations.
+  range: [0.9, 2.5]
+  unit: g/cm3
+  related: [soil, porosity, SOL_AWC, infiltration]
+  ref: "Neitsch et al. (2011) Ch. 6"
+
+SLSUBBSN:
+  name: Average Slope Length (SLSUBBSN)
+  definition: >
+    Average slope length for the sub-basin. Used in USLE
+    erosion calculations and lateral flow computations.
+  range: [10, 150]
+  unit: m
+  related: [slope, erosion, USLE, lateral_flow]
+  ref: "Neitsch et al. (2011) Ch. 22"
+
+OV_N:
+  name: Manning's N for Overland Flow
+  definition: >
+    Manning's roughness coefficient for overland flow. Controls
+    the velocity of surface runoff across the land surface
+    before it reaches the channel. Higher values slow runoff.
+  range: [0.01, 0.5]
+  unit: dimensionless
+  related: [runoff, Manning, surface_flow, SURLAG]
+  ref: "Neitsch et al. (2011) Ch. 9"
+
+REVAPMN:
+  name: Threshold Depth for Revap (REVAPMN)
+  definition: >
+    Minimum water depth in the shallow aquifer for revap
+    (capillary rise) to occur. Below this threshold, no water
+    moves from the aquifer back to the root zone.
+  range: [0, 1000]
+  unit: mm H2O
+  related: [groundwater, GW_REVAP, capillary, shallow_aquifer]
+  ref: "Neitsch et al. (2011) Ch. 12"
+
+LAT_TTIME:
+  name: Lateral Flow Travel Time
+  definition: >
+    Time required for lateral flow to reach the stream. Controls
+    the delay between soil saturation and lateral flow contribution
+    to streamflow.
+  range: [0, 180]
+  unit: days
+  related: [lateral_flow, soil, subsurface, baseflow]
+  ref: "Neitsch et al. (2011) Ch. 10"
+
+BIOMIX:
+  name: Biological Mixing Efficiency
+  definition: >
+    Efficiency of soil mixing by biological activity (earthworms,
+    root growth). Controls how quickly surface-applied nutrients
+    and pesticides are mixed into the soil profile.
+  range: [0.0, 1.0]
+  unit: dimensionless
+  related: [soil, nutrients, organic_matter]
+  ref: "Neitsch et al. (2011) Ch. 19"
+
+USLE_P:
+  name: USLE Support Practice Factor
+  definition: >
+    Ratio of soil loss with a specific support practice (contour
+    farming, terracing) to soil loss with straight-row farming.
+    Lower values indicate better erosion control practices.
+  range: [0.0, 1.0]
+  unit: dimensionless
+  related: [erosion, USLE, USLE_K, conservation]
+  ref: "Wischmeier & Smith (1978); Neitsch et al. (2011) Ch. 22"
+
+USLE_K:
+  name: USLE Soil Erodibility Factor
+  definition: >
+    Inherent susceptibility of soil to erosion by water. Higher
+    values indicate more erodible soils. Depends on soil texture,
+    organic matter content, structure, and permeability.
+  range: [0.0, 0.65]
+  unit: "(t ha hr) / (ha MJ mm)"
+  related: [erosion, USLE, USLE_P, soil, sediment]
+  ref: "Wischmeier & Smith (1978); Neitsch et al. (2011) Ch. 22"
+
+PBIAS:
+  name: Percent Bias
+  definition: >
+    Measures the average tendency of simulated values to be larger
+    or smaller than observed. Positive PBIAS = model overestimates,
+    negative = underestimates. PBIAS = 100 * sum(sim-obs) / sum(obs).
+    Optimal value is 0.
+  range: [-100, 100]
+  unit: percent
+  related: [calibration, KGE, NSE, performance]
+  ref: "Gupta et al. (1999) doi:10.1029/97WR03495"
+
+ALPHA_BNK:
+  name: Baseflow Alpha Factor for Bank Storage
+  definition: >
+    Recession constant for bank storage contribution to streamflow.
+    Controls how quickly water stored in the stream bank drains
+    back into the channel during falling stage.
+  range: [0.0, 1.0]
+  unit: 1/day
+  related: [baseflow, bank_storage, channel, recession]
+  ref: "Neitsch et al. (2011) Ch. 14"
+
+DEP_IMP:
+  name: Depth to Impervious Layer
+  definition: >
+    Depth from the soil surface to the impervious boundary layer.
+    Controls the maximum depth of percolation. Water reaching this
+    depth contributes to lateral flow or groundwater recharge.
+  range: [0, 6000]
+  unit: mm
+  related: [soil, percolation, lateral_flow, groundwater]
+  ref: "Neitsch et al. (2011) Ch. 6"
