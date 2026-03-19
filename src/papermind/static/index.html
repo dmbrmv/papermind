@@ -81,6 +81,7 @@ main{overflow-y:auto;padding:24px 32px}
   <div class="sidebar">
     <h3>Views</h3>
     <button class="nav-btn active" data-view="browse">Browse Papers</button>
+    <button class="nav-btn" data-view="cite">Cite</button>
     <button class="nav-btn" data-view="sessions">Sessions</button>
     <button class="nav-btn" data-view="explain">Explain</button>
     <h3>Topics</h3>
@@ -156,6 +157,7 @@ function setActiveNav(view){
 async function showView(view){
   setActiveNav(view);
   if(view==='browse')await loadPapers();
+  else if(view==='cite')showCiteView();
   else if(view==='sessions')await loadSessions();
   else if(view==='explain')showExplainView();
 }
@@ -346,6 +348,114 @@ async function showSessionDetail(sid){
       m.appendChild(card);
     }
   }catch(e){m.textContent='Error: '+e.message;}
+}
+
+function showCiteView(){
+  const m=document.getElementById('main');m.textContent='';
+  const h2=document.createElement('h2');
+  h2.textContent='Find References';h2.style.marginBottom='8px';m.appendChild(h2);
+  const desc=document.createElement('p');
+  desc.style.cssText='color:var(--fg2);font-size:14px;margin-bottom:16px';
+  desc.textContent='Type a claim and find supporting papers from your KB. If coverage is thin, searches OpenAlex automatically.';
+  m.appendChild(desc);
+  const bar=document.createElement('div');bar.className='search-bar';
+  const input=document.createElement('textarea');
+  input.id='cite-q';input.placeholder='e.g., SWAT+ has been widely used for watershed modeling...';
+  input.style.cssText='flex:1;background:var(--bg3);border:1px solid var(--border);color:var(--fg);padding:10px 14px;font-family:var(--serif);font-size:15px;border-radius:4px;outline:none;resize:vertical;min-height:60px';
+  const btn=document.createElement('button');btn.textContent='CITE';
+  btn.addEventListener('click',doCite);
+  bar.appendChild(input);bar.appendChild(btn);m.appendChild(bar);
+  const result=document.createElement('div');result.id='cite-result';m.appendChild(result);
+}
+
+async function doCite(){
+  const q=document.getElementById('cite-q').value.trim();
+  if(!q)return;
+  const el=document.getElementById('cite-result');
+  el.textContent='Searching KB and external APIs...';
+  try{
+    const r=await fetch(API+'/analysis/auto-cite',{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({claim:q,max_ingest:0})
+    });
+    el.textContent='';
+    if(!r.ok){el.textContent='Search failed.';return;}
+    const d=await r.json();
+
+    if(d.total===0){el.textContent='No references found.';return;}
+
+    // KB refs
+    if(d.kb_refs&&d.kb_refs.length){
+      const h3=document.createElement('h3');
+      h3.style.cssText='font-size:14px;color:var(--accent);margin:16px 0 8px';
+      h3.textContent='From Knowledge Base ('+d.kb_refs.length+')';
+      el.appendChild(h3);
+      for(const ref of d.kb_refs){
+        const card=document.createElement('div');
+        card.style.cssText='padding:12px 16px;background:var(--bg2);border-radius:4px;margin:6px 0;border-left:3px solid var(--accent2);cursor:pointer';
+        const title=document.createElement('div');
+        title.style.fontWeight='600';title.textContent=ref.title;
+        const meta=document.createElement('div');
+        meta.style.cssText='font-family:var(--mono);font-size:11px;color:var(--fg2);margin-top:4px';
+        const parts=[];
+        if(ref.topic)parts.push(ref.topic);
+        if(ref.doi)parts.push('doi:'+ref.doi);
+        meta.textContent=parts.join(' \u00b7 ');
+        card.appendChild(title);card.appendChild(meta);
+        if(ref.path){
+          // Find paper ID from path for click-through
+          card.addEventListener('click',()=>{
+            // Try to extract ID from the catalog
+            fetch(API+'/papers').then(r=>r.json()).then(data=>{
+              const match=(data.papers||[]).find(p=>p.path===ref.path);
+              if(match)showPaper(match.id);
+            });
+          });
+        }
+        el.appendChild(card);
+      }
+    }
+
+    // External refs
+    if(d.external_only&&d.external_only.length){
+      const h3=document.createElement('h3');
+      h3.style.cssText='font-size:14px;color:var(--fg2);margin:16px 0 8px';
+      h3.textContent='External ('+d.external_only.length+')';
+      el.appendChild(h3);
+      for(const ref of d.external_only){
+        const card=document.createElement('div');
+        card.style.cssText='padding:10px 16px;background:var(--bg3);border-radius:4px;margin:4px 0';
+        const title=document.createElement('div');
+        title.textContent=ref.title;
+        const meta=document.createElement('div');
+        meta.style.cssText='font-family:var(--mono);font-size:11px;color:var(--fg2)';
+        if(ref.doi)meta.textContent='doi:'+ref.doi;
+        card.appendChild(title);card.appendChild(meta);
+        el.appendChild(card);
+      }
+    }
+
+    // Newly ingested
+    if(d.newly_ingested&&d.newly_ingested.length){
+      const h3=document.createElement('h3');
+      h3.style.cssText='font-size:14px;color:var(--accent);margin:16px 0 8px';
+      h3.textContent='Auto-ingested ('+d.newly_ingested.length+')';
+      el.appendChild(h3);
+      for(const ref of d.newly_ingested){
+        const card=document.createElement('div');
+        card.style.cssText='padding:10px 16px;background:var(--bg2);border-radius:4px;margin:4px 0;border-left:3px solid var(--accent)';
+        const title=document.createElement('div');
+        title.style.fontWeight='600';title.textContent=ref.title+' (newly added to KB)';
+        card.appendChild(title);
+        el.appendChild(card);
+      }
+    }
+
+    const total=document.createElement('div');
+    total.style.cssText='font-family:var(--mono);font-size:11px;color:var(--fg2);margin-top:16px';
+    total.textContent=d.total+' reference(s) found';
+    el.appendChild(total);
+  }catch(e){el.textContent='Error: '+e.message;}
 }
 
 function showExplainView(){
