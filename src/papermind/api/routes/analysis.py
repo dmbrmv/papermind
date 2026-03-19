@@ -216,6 +216,39 @@ async def resolve_refs(
     }
 
 
+class AutoCiteRequest(BaseModel):
+    """Request for auto-cite with auto-ingest."""
+
+    claim: str
+    topic: str = "uncategorized"
+    max_ingest: int = 3
+
+
+@router.post("/analysis/auto-cite")
+async def auto_cite_endpoint(
+    body: AutoCiteRequest,
+    kb_path: Path = Depends(get_kb_path),
+) -> dict:
+    """Find refs with auto-ingest — KB grows from your questions."""
+    from papermind.auto_cite import auto_cite
+
+    result = await asyncio.to_thread(
+        auto_cite,
+        body.claim,
+        kb_path,
+        topic=body.topic,
+        max_ingest=body.max_ingest,
+    )
+
+    return {
+        "claim": result.claim,
+        "total": result.total,
+        "kb_refs": result.kb_refs,
+        "newly_ingested": result.newly_ingested,
+        "external_only": result.external_only,
+    }
+
+
 class CiteRequest(BaseModel):
     """Request to find references for a claim."""
 

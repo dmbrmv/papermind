@@ -363,6 +363,19 @@ def handle_session_add(kb_path: Path, args: dict) -> list[TextContent]:
         return [TextContent(type="text", text=f"Error: {exc}")]
 
 
+def handle_auto_cite(kb_path: Path, args: dict) -> list[TextContent]:
+    """Find references with auto-ingest."""
+    from papermind.auto_cite import auto_cite, format_auto_cite
+
+    result = auto_cite(
+        args["claim"],
+        kb_path,
+        topic=args.get("topic", "uncategorized"),
+        max_ingest=args.get("max_ingest", 3),
+    )
+    return [TextContent(type="text", text=format_auto_cite(result))]
+
+
 def handle_find_references(kb_path: Path, args: dict) -> list[TextContent]:
     """Find papers supporting a claim."""
     from papermind.references import find_references, format_claim_result

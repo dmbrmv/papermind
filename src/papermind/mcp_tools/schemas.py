@@ -307,6 +307,34 @@ TOOLS: list[Tool] = [
         },
     ),
     Tool(
+        name="auto_cite",
+        description=(
+            "Find references with auto-ingest. Searches KB first, "
+            "discovers externally when thin, downloads + ingests "
+            "papers automatically. KB grows from your questions."
+        ),
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "claim": {
+                    "type": "string",
+                    "description": "Claim to find references for",
+                },
+                "topic": {
+                    "type": "string",
+                    "default": "uncategorized",
+                    "description": "Topic for auto-ingested papers",
+                },
+                "max_ingest": {
+                    "type": "integer",
+                    "default": 3,
+                    "description": "Max papers to auto-ingest",
+                },
+            },
+            "required": ["claim"],
+        },
+    ),
+    Tool(
         name="find_references",
         description=(
             "Find papers supporting a claim. "

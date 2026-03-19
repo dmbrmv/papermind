@@ -108,10 +108,12 @@ app.command(name="resolve")(resolve_cmd)
 app.command(name="validate-refs")(validate_refs_cmd)
 app.command(name="verify")(verify_cmd)
 from papermind.cli.api_diff import api_diff_cmd  # noqa: E402
+from papermind.cli.auto_cite import auto_cite_cmd  # noqa: E402
 from papermind.cli.references import bib_gap_cmd, cite_cmd, respond_cmd  # noqa: E402
 from papermind.cli.session import session_app  # noqa: E402
 from papermind.cli.sharing import export_cmd, import_cmd  # noqa: E402
 
+app.command(name="auto-cite")(auto_cite_cmd)
 app.command(name="cite")(cite_cmd)
 app.command(name="bib-gap")(bib_gap_cmd)
 app.command(name="respond")(respond_cmd)
