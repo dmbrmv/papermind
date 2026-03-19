@@ -175,7 +175,8 @@ def serve_command(
             from papermind.api.app import create_app
         except ImportError as exc:
             typer.echo(
-                f"Error: HTTP mode requires the [api] extra: pip install 'papermind[api]'\n{exc}",
+                "Error: HTTP mode requires [api] extra: "
+                f"pip install 'papermind[api]'\n{exc}",
                 err=True,
             )
             raise typer.Exit(code=1) from exc

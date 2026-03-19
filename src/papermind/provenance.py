@@ -84,7 +84,7 @@ _REF_PATTERN = re.compile(
         |                                    # OR
         paper-[a-z0-9][-a-z0-9]*            # Paper ID pattern
     )
-    (?:\s+(.+?))?                   # Group 2: optional location (eq.4.2, §methods, etc.)
+    (?:\s+(.+?))?                   # Group 2: optional location
     \s*(?:\*/)?$                    # Optional closing */ and end of line
     """,
     re.VERBOSE | re.MULTILINE,
@@ -238,7 +238,7 @@ def suggest_annotations(
         limit: Max suggestions to return.
 
     Returns:
-        List of dicts with 'line', 'function', 'suggestion', 'paper_title', 'paper_path'.
+        List of suggestion dicts (paper_title, annotation, etc.).
     """
     from papermind.watch import extract_concepts, watch_file
 

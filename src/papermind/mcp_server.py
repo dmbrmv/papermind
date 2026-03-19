@@ -218,7 +218,7 @@ def create_server(kb_path: Path) -> Server:
                     "properties": {
                         "name": {
                             "type": "string",
-                            "description": "Session name (e.g. 'baseflow literature review')",
+                            "description": "Session name",
                         },
                     },
                     "required": ["name"],
@@ -315,7 +315,7 @@ def create_server(kb_path: Path) -> Server:
                     "properties": {
                         "equation_latex": {
                             "type": "string",
-                            "description": "LaTeX equation (e.g. 'Q = K_s \\cdot S^{0.5}')",
+                            "description": "LaTeX equation string",
                         },
                         "file_path": {
                             "type": "string",

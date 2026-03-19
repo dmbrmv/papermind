@@ -163,9 +163,7 @@ def ingest_paper_cmd(
         raise typer.Exit(code=1) from exc
 
     if entry is None:
-        console.print(
-            "[yellow]Skipped[/yellow] — a paper with the same DOI or title already exists."
-        )
+        console.print("[yellow]Skipped[/yellow] — duplicate DOI or title.")
         raise typer.Exit(code=0)
 
     console.print(f"[green]Ingested[/green] paper [bold]{entry.title}[/bold]")

@@ -53,8 +53,8 @@ def session_add(
 
     Examples::
 
-        papermind session add baseflow-lit-review "Found 3 papers on recession analysis" --agent sub-agent-1
-        papermind session add baseflow-lit-review "Key finding: alpha_bf range 0.01-0.5" --tags key,parameter
+        papermind session add my-review "Found papers" -a agent-1
+        papermind session add my-review "Key finding" --tags key
     """
     from papermind.session import add_to_session
 

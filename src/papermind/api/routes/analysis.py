@@ -1,4 +1,4 @@
-"""Analysis endpoints — explain, provenance, equation-map, verify, watch, profile, resolve."""
+"""Analysis endpoints — explain, provenance, equation-map, verify, etc."""
 
 from __future__ import annotations
 
