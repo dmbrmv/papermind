@@ -117,8 +117,21 @@ literature and scientific code.
   (batch commits, cache-first reads, _ENTRY_FIELDS constant)
 - 626 tests, 50+ CLI commands, 19 MCP tools, 15 REST endpoints
 
-## v4.0+ — Future
+### v4.0.0 (2026-03-20)
+- Auto-cite — KB→external→auto-ingest pipeline
+- Reference tools: cite, bib-gap, respond
+- 22 MCP tools, 18 REST endpoints, 643 tests
+- Claude warm theme UI with KaTeX + marked.js rendering
+- Citation coloring (orange=KB, blue=search), fuzzy explain
+- CLAUDE.md, CHANGELOG.md, glossary expansion (32 params)
 
-- [ ] Recommendation engine (suggest papers based on reading history)
-- [ ] MCP server split at 25+ tools
-- [ ] SQLite for sessions (currently JSON with write lock)
+## v5.0 — UI Rewrite (planned)
+
+- [ ] Vite + React + TypeScript SPA (replace vanilla HTML)
+- [ ] react-markdown + react-katex for paper rendering
+- [ ] Zustand state management, React Router
+- [ ] Text selection context menu as React portal
+- [ ] Paper summaries via ollama (brief/summary/deep_dive)
+- [ ] Citation graph visualization
+- [ ] Tailwind CSS with Claude warm palette
+- [ ] See `docs/plans/v5-ui-rewrite.md` for full plan
