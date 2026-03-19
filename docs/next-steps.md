@@ -66,19 +66,18 @@
 ### Deferred — concept ontology
 Premature at <75 papers. Simple alias file used instead. Revisit at 75+ papers.
 
-## v1.6 — Deeper Proactive Knowledge
+### v1.6.0 (2026-03-17)
+- Structured table extraction (pipe-delimited), pitfalls/anti-pattern warnings
+- `papermind brief --diff` commit-triggered knowledge surfacing
+- Semantic Scholar removed (OpenAlex-only)
 
-- [ ] **Structured table extraction** — parameter tables from papers as queryable
-  data (parameter name, min, max, units, catchment type, reference). Highest-value
-  extraction target for hydrology KBs.
-- [ ] **Anti-pattern warnings** — entries can have `pitfalls` field with pattern +
-  warning. Agent touching matching code gets warned proactively.
-- [ ] **Commit-triggered briefing** — `papermind brief --diff HEAD~1..HEAD` surfaces
-  relevant knowledge after code changes.
-- [ ] **Cross-references** — infer paper relationships beyond citation graph:
-  shared keywords, same authors, overlapping methods.
-- [ ] **Collection reports** — generate a topic overview: key papers, methods,
-  open questions. Literature review bootstrapping.
+### v1.7.0 (2026-03-19)
+- Markdown ingestion — `.md`/`.markdown` files, Obsidian-compatible
+- Claude Code skill (`skills/papermind/SKILL.md`)
+- `papermind explain` — curated glossary (20 params) + KB search fallback
+- `papermind report` — topic overview generation
+- `papermind crossref` — keyword-based paper relationships (Jaccard on tags)
+- qmd semantic search backend fixed (65 files, 4034 chunks embedded)
 
 ## v2.0 — Verification & Code-Paper Bridge
 
@@ -103,9 +102,17 @@ literature and scientific code.
 - [x] **API version diffing** — `papermind api-diff <old> <new> [-f function]`.
   Detects added/removed/changed functions with parameter-level detail.
 
-## v3.0 — Platform (future)
+### v3.0.0 (2026-03-19)
+- REST API — FastAPI HTTP layer over the knowledge base
+  - 15 endpoints: /search/*, /papers/*, /sessions/*, /analysis/*, /api-diff/*
+  - OpenAPI docs at /docs, CORS enabled, asyncio write lock
+  - `papermind serve --http [--port 8080]`
+  - Optional `[api]` extra (fastapi + uvicorn)
 
-- Web UI for browsing and searching the KB
-- Collaborative KBs (multi-user, shared collections)
-- Recommendation engine (suggest papers based on reading history)
-- REST API for programmatic access beyond MCP
+## v3.1+ — Platform (future)
+
+- [ ] SQLite backend for sessions + catalog (concurrent multi-worker)
+- [ ] Web UI for browsing and searching the KB
+- [ ] Collaborative KBs (multi-user, shared collections)
+- [ ] Recommendation engine (suggest papers based on reading history)
+- [ ] MCP server split at 25+ tools

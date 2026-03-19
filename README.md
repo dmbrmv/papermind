@@ -58,6 +58,9 @@ papermind --kb ~/kb search "evapotranspiration calibration"
 # Ingest a local PDF
 papermind --kb ~/kb ingest paper path/to/paper.pdf --topic hydrology
 
+# Ingest a markdown file (e.g. from Obsidian)
+papermind --kb ~/kb ingest paper notes.md --topic hydrology
+
 # Ingest a Python package's API docs
 papermind --kb ~/kb ingest package numpy
 
@@ -85,24 +88,29 @@ All commands accept `--kb <path>` as a global option. Pass `--offline` to disabl
 | `download <url\|doi>` | Download a paper PDF by URL or DOI |
 | `crawl <id>` | Follow citation DOIs from a seed paper to build a connected KB |
 | `related <id>` | Show papers in the KB connected by citations |
-| `backfill` | Enrich existing papers with citation data from Semantic Scholar |
+| `backfill` | Enrich existing papers with citation data from OpenAlex |
 | `context-pack` | Generate a compressed topic briefing for agent context injection |
 | `watch <file>` | Surface relevant KB entries for a source code file |
+| `explain <concept>` | Explain a parameter/concept (glossary + KB fallback) |
+| `report --topic <t>` | Generate structured topic overview report |
+| `crossref` | Compute keyword-based paper cross-references |
+| `resolve <file>` | Resolve `kb:paper-id` references in markdown |
+| `validate-refs <file>` | Check all `kb:` references exist in KB |
+| `verify <file>` | Verify code implements a paper equation |
 | `export-bibtex` | Export paper citations as BibTeX |
-| `migrate` | Convert legacy flat layout to per-paper subdirectories |
 | `reindex` | Rebuild `catalog.json` and `catalog.md` from the filesystem |
 | `remove <id>` | Remove an entry and its files from the KB |
 | `doctor` | Check installed dependencies and tool availability |
-| `serve` | Start the MCP server (stdio transport) |
+| `serve` | Start MCP server (stdio) or REST API (`--http`) |
 | `version` | Print version |
 
 ### Sub-commands
 
 | Command | Description |
 |---------|-------------|
-| `ingest paper <path>` | Ingest a PDF (or folder of PDFs) via GLM-OCR |
+| `ingest paper <path>` | Ingest PDF or markdown (single file or batch) |
 | `ingest package <name>` | Extract a PyPI package's API and documentation |
-| `ingest codebase <path>` | Walk a source tree (Python, Fortran, C, Rust) |
+| `ingest codebase <path>` | Walk a source tree (Python, Fortran, C, Rust, etc.) |
 | `catalog show` | List all KB entries (`--json` for machine-readable, `--topic` to filter) |
 | `catalog stats` | Summary statistics by type and topic |
 | `audit stale` | List entries not verified recently |
@@ -111,6 +119,17 @@ All commands accept `--kb <path>` as a global option. Pass `--offline` to disabl
 | `equations show <id>` | Show equations extracted from a paper |
 | `equations backfill` | Extract equations for all papers and store in frontmatter |
 | `tags refresh` | Recompute TF-IDF tags for all papers |
+| `provenance show <file>` | Show `# REF:` annotations in a source file |
+| `provenance scan <dir>` | Scan a codebase for all `# REF:` annotations |
+| `provenance suggest <file>` | Auto-propose annotations from KB search |
+| `equation-map <file>` | Map LaTeX equation symbols to code variables |
+| `profile <path>` | Generate project profile from codebase analysis |
+| `api-diff <old> <new>` | Compare two package API versions |
+| `session create <name>` | Create a research session |
+| `session add <id> <text>` | Add finding to a session |
+| `session read <id>` | Read session findings |
+| `session list` | List all sessions |
+| `session close <id>` | Close a session |
 
 ### Examples
 
@@ -156,21 +175,56 @@ PaperMind exposes your KB to AI assistants via the [Model Context Protocol](http
 }
 ```
 
-**Available MCP tools (tiered retrieval):**
+**Available MCP tools (19 total):**
 
-| Tool | Tier | Description |
-|------|------|-------------|
-| `scan` | 1 | Titles + IDs + scores (~50 tokens/result). Start here. |
-| `summary` | 2 | Structured abstract + metadata (~500 tokens/result) |
-| `detail` | 3 | Full document content with budget control |
-| `get` | — | Read a single document by path |
-| `multi_get` | — | Read multiple documents in one call |
-| `catalog_stats` | — | KB statistics by type and topic |
-| `list_topics` | — | All topics in the KB |
-| `discover_papers` | — | Search academic APIs without ingesting |
-| `watch_file` | — | Surface relevant KB entries for a source file |
+| Tool | Category | Description |
+|------|----------|-------------|
+| `scan` | Search | Titles + scores (~50 tokens/result). Start here. |
+| `summary` | Search | Abstract + metadata (~500 tokens/result) |
+| `detail` | Search | Full document content with budget control |
+| `get` | Access | Read a single document by path |
+| `multi_get` | Access | Read multiple documents in one call |
+| `catalog_stats` | Catalog | KB statistics by type and topic |
+| `list_topics` | Catalog | All topics in the KB |
+| `discover_papers` | Discovery | Search academic APIs |
+| `watch_file` | Analysis | Surface relevant KB entries for a source file |
+| `explain_concept` | Analysis | Parameter/concept glossary lookup |
+| `equation_map` | Analysis | Map LaTeX symbols to code variables |
+| `provenance` | Analysis | Extract `# REF:` annotations from code |
+| `project_profile` | Analysis | Generate codebase summary |
+| `verify_implementation` | Analysis | Check code implements a paper equation |
+| `resolve_refs` | Memory | Resolve `kb:` references in markdown |
+| `session_create` | Sessions | Create a research session |
+| `session_add` | Sessions | Add finding to a session |
+| `session_read` | Sessions | Read session findings |
 
-The tiered design keeps token cost low: use `scan` to identify candidates, `summary` to qualify, `detail` only when full text is needed.
+---
+
+## REST API
+
+PaperMind also exposes a REST API for web clients and programmatic access.
+
+```bash
+pip install "papermind[api]"
+papermind --kb ~/kb serve --http --port 8080
+```
+
+OpenAPI docs at `http://localhost:8080/docs`. Endpoints:
+
+| Route | Method | Description |
+|-------|--------|-------------|
+| `/api/v1/search/scan` | GET | Search with scores |
+| `/api/v1/search/summary` | GET | Search with abstracts |
+| `/api/v1/search/detail/{path}` | GET | Full document read |
+| `/api/v1/papers` | GET | List papers |
+| `/api/v1/papers/{id}` | GET | Get paper with metadata |
+| `/api/v1/sessions` | GET/POST | List or create sessions |
+| `/api/v1/sessions/{id}` | GET | Read session entries |
+| `/api/v1/analysis/explain` | POST | Concept explanation |
+| `/api/v1/analysis/provenance` | POST | Extract code annotations |
+| `/api/v1/analysis/equation-map` | POST | Symbol→variable mapping |
+| `/api/v1/analysis/verify` | POST | Implementation verification |
+| `/api/v1/api-diff/{old}/{new}` | GET | Package API diff |
 
 ---
 
@@ -204,15 +258,19 @@ Paper frontmatter carries structured metadata: title, DOI, authors, year, topic,
 
 ## Key Features
 
-- **Discovery**: parallel search across OpenAlex, Semantic Scholar, and Exa; ranked by citation count, DOI presence, and PDF availability
-- **OCR**: local GPU-based PDF conversion via GLM-OCR (0.9B params, MIT license, LaTeX equation output)
-- **Citation graph**: `cites` / `cited_by` from Semantic Scholar stored in frontmatter; `crawl` follows DOIs to expand the KB automatically
-- **Equation extraction**: regex-based `$$`/`$` block extraction with section context; stored in frontmatter for MCP retrieval
-- **Auto-tagging**: TF-IDF keyword extraction across the KB; alias expansion via `aliases.yaml` with domain cluster support
-- **Watch**: AST concept extraction from source files → KB search; available as both CLI command and MCP tool
-- **Tiered MCP**: three retrieval tiers (scan/summary/detail) to control token budget; `budget` parameter for fine-grained control
-- **Freshness tracking**: `audit stale` / `audit verify` / `audit check-versions` for KB maintenance
+- **Discovery**: parallel search across OpenAlex and Exa; ranked by citation count, DOI presence, and PDF availability
+- **Ingestion**: PDFs (GLM-OCR), markdown files (Obsidian-compatible), Python packages (griffe), codebases (multi-language)
 - **Search**: hybrid semantic search via qmd (BM25 + vector + LLM reranking) with grep fallback and `--year` / `--topic` filters
+- **Explain**: curated parameter glossary (20 hydrological params) with KB search fallback
+- **Code-paper bridge**: `# REF:` provenance annotations, equation-to-code symbol mapping, implementation verification
+- **Project profile**: auto-generated codebase summary (languages, functions, linked papers, inferred topics)
+- **Research sessions**: append-only scratchpad for multi-agent collaboration with tag filtering
+- **Agent memory**: `kb:paper-id` references in markdown files, resolved against the KB
+- **API diffing**: compare package API versions for breaking changes
+- **19 MCP tools**: tiered retrieval (scan/summary/detail) + analysis + sessions
+- **REST API**: FastAPI HTTP layer with OpenAPI docs, CORS, and write serialization
+- **Reports**: structured topic overviews with paper inventory, keyword taxonomy, and coverage analysis
+- **Cross-references**: keyword-based paper relationships (Jaccard on TF-IDF tags)
 
 ---
 
@@ -263,6 +321,10 @@ offline_only = false
 | v1.3.1 | 2026-03-16 | Per-paper subdirectories, `migrate` command, `--target N` flag for guaranteed paper count |
 | v1.4.0 | 2026-03-16 | Tiered MCP (scan/summary/detail), `context-pack`, `crawl`, `tags refresh`, freshness audit, `--year` filter |
 | v1.5.0 | 2026-03-17 | `watch` command + MCP tool, structured equation extraction, search alias expansion, 426 tests |
+| v1.6.0 | 2026-03-17 | Table extraction, pitfalls, `brief --diff`, Semantic Scholar removed |
+| v1.7.0 | 2026-03-19 | Markdown ingestion, `explain`, `report`, `crossref`, Claude Code skill, qmd search fixed |
+| v2.0.0 | 2026-03-19 | Code-paper bridge: `provenance`, `equation-map`, `verify`, `profile`, `resolve`, `sessions`, `api-diff`. 19 MCP tools, 571 tests |
+| v3.0.0 | 2026-03-19 | REST API (FastAPI), 15 HTTP endpoints, OpenAPI docs, 599 tests |
 
 ---
 
