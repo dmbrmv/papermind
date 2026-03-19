@@ -211,6 +211,53 @@ def create_server(kb_path: Path) -> Server:
                 },
             ),
             Tool(
+                name="session_create",
+                description="Create a research session for multi-agent collaboration.",
+                inputSchema={
+                    "type": "object",
+                    "properties": {
+                        "name": {
+                            "type": "string",
+                            "description": "Session name (e.g. 'baseflow literature review')",
+                        },
+                    },
+                    "required": ["name"],
+                },
+            ),
+            Tool(
+                name="session_add",
+                description="Add a finding to a research session.",
+                inputSchema={
+                    "type": "object",
+                    "properties": {
+                        "session_id": {"type": "string", "description": "Session ID"},
+                        "content": {"type": "string", "description": "Finding or note"},
+                        "agent": {
+                            "type": "string",
+                            "description": "Agent name (default: 'agent')",
+                        },
+                        "tags": {
+                            "type": "array",
+                            "items": {"type": "string"},
+                            "description": "Optional tags",
+                        },
+                    },
+                    "required": ["session_id", "content"],
+                },
+            ),
+            Tool(
+                name="session_read",
+                description="Read accumulated findings from a research session.",
+                inputSchema={
+                    "type": "object",
+                    "properties": {
+                        "session_id": {"type": "string", "description": "Session ID"},
+                        "tag": {"type": "string", "description": "Filter by tag"},
+                    },
+                    "required": ["session_id"],
+                },
+            ),
+            Tool(
                 name="resolve_refs",
                 description=(
                     "Resolve kb:paper-id references in markdown text. "
@@ -352,6 +399,12 @@ def create_server(kb_path: Path) -> Server:
             return _handle_resolve_refs(kb_path, arguments)
         elif name == "verify_implementation":
             return _handle_verify(kb_path, arguments)
+        elif name == "session_create":
+            return _handle_session_create(kb_path, arguments)
+        elif name == "session_add":
+            return _handle_session_add(kb_path, arguments)
+        elif name == "session_read":
+            return _handle_session_read(kb_path, arguments)
         raise ValueError(f"Unknown tool: {name}")
 
     return server
@@ -573,6 +626,56 @@ def _handle_watch(kb_path: Path, args: dict) -> list[TextContent]:
             text=format_watch_output(file_path.name, results),
         )
     ]
+
+
+def _handle_session_create(kb_path: Path, args: dict) -> list[TextContent]:
+    """Create a research session."""
+    from papermind.session import create_session
+
+    try:
+        session = create_session(kb_path, args["name"])
+        return [
+            TextContent(
+                type="text",
+                text=f"Created session '{session.name}' (id: {session.id})",
+            )
+        ]
+    except ValueError as exc:
+        return [TextContent(type="text", text=f"Error: {exc}")]
+
+
+def _handle_session_add(kb_path: Path, args: dict) -> list[TextContent]:
+    """Add entry to a research session."""
+    from papermind.session import add_to_session
+
+    try:
+        entry = add_to_session(
+            kb_path,
+            args["session_id"],
+            args["content"],
+            agent=args.get("agent", "agent"),
+            tags=args.get("tags"),
+        )
+        return [
+            TextContent(
+                type="text",
+                text=f"Added entry by {entry.agent} at {entry.timestamp}",
+            )
+        ]
+    except ValueError as exc:
+        return [TextContent(type="text", text=f"Error: {exc}")]
+
+
+def _handle_session_read(kb_path: Path, args: dict) -> list[TextContent]:
+    """Read a research session."""
+    from papermind.session import format_session, read_session
+
+    session = read_session(kb_path, args["session_id"], tag=args.get("tag", ""))
+    if session is None:
+        return [
+            TextContent(type="text", text=f"Session not found: {args['session_id']}")
+        ]
+    return [TextContent(type="text", text=format_session(session))]
 
 
 def _handle_resolve_refs(kb_path: Path, args: dict) -> list[TextContent]:

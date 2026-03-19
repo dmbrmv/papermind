@@ -107,6 +107,11 @@ from papermind.cli.verify import verify_cmd  # noqa: E402
 app.command(name="resolve")(resolve_cmd)
 app.command(name="validate-refs")(validate_refs_cmd)
 app.command(name="verify")(verify_cmd)
+from papermind.cli.api_diff import api_diff_cmd  # noqa: E402
+from papermind.cli.session import session_app  # noqa: E402
+
+app.command(name="api-diff")(api_diff_cmd)
+app.add_typer(session_app, name="session")
 app.command(name="pitfall-add")(pitfall_add_cmd)
 app.command(name="pitfall-list")(pitfall_list_cmd)
 app.add_typer(tables_app, name="tables")
