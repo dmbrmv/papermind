@@ -88,24 +88,20 @@ literature and scientific code.
 - [x] **Code-to-paper provenance** — `# REF: doi:10.1029/... eq.7` annotations
   in code that PaperMind indexes. `papermind provenance show|scan|suggest`.
   Multi-language (Python/Fortran/C). MCP tool: `provenance`.
-- [ ] **Equation-to-code mapping** — given a paper equation and a code function,
-  propose symbol → variable mapping with confidence scores. Flag discrepancies
-  (missing terms, wrong exponents, unit mismatches).
-- [ ] **Implementation verification** — `papermind verify --paper <id> --eq 4.2.1
-  --code <file>::<function>`. Line-by-line alignment of paper equation vs code
-  implementation. Unit consistency checking.
-- [ ] **Two MCP servers** — split into `papermind-retrieval` (5 tools, always on)
-  and `papermind-analysis` (deferred, on-demand) to keep tool surface lean.
-- [ ] **Agent memory integration** — `kb:entry-id` references in MEMORY.md files.
-  `papermind resolve` MCP tool expands references. `papermind sync-memory` validates
-  and suggests references.
+- [x] **Equation-to-code mapping** — heuristic symbol matcher (exact, normalized,
+  glossary, fuzzy). `papermind equation-map <file>::<fn> -e "LaTeX"`. MCP tool: `equation_map`.
+- [x] **Implementation verification** — `papermind verify <file>::<fn> --paper <id> --eq N`.
+  Coverage score, confidence, verdict (good/partial/poor). MCP tool: `verify_implementation`.
+- [ ] **Two MCP servers** — split into `papermind-retrieval` and `papermind-analysis`.
+  *Deferred — 19 tools is manageable; split at 25+.*
+- [x] **Agent memory integration** — `kb:paper-id` and `kb:doi:10.xxx` references.
+  `papermind resolve`, `papermind validate-refs`. MCP tool: `resolve_refs`.
 - [x] **Project profile** — auto-generated from codebase (walk + provenance scan).
   Languages, functions, classes, linked papers, inferred topics. MCP tool: `project_profile`.
-- [ ] **Research sessions** — shared scratchpad for multi-agent workflows.
-  Lead agent creates session, sub-agents contribute findings, any agent reads
-  accumulated results.
-- [ ] **API version diffing** — `papermind api-diff pandas 2.1 3.0 DataFrame.to_parquet`.
-  Track breaking changes across package versions.
+- [x] **Research sessions** — `papermind session create|add|read|list|close`.
+  Tag-filtered, append-only scratchpad. MCP tools: session_create/add/read.
+- [x] **API version diffing** — `papermind api-diff <old> <new> [-f function]`.
+  Detects added/removed/changed functions with parameter-level detail.
 
 ## v3.0 — Platform (future)
 
