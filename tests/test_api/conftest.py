@@ -6,10 +6,15 @@ from pathlib import Path
 
 import frontmatter as fm_lib
 import pytest
-from fastapi.testclient import TestClient
 
-from papermind.api.app import create_app
-from papermind.catalog.index import CatalogEntry, CatalogIndex
+fastapi = pytest.importorskip(
+    "fastapi", reason="fastapi not installed (pip install 'papermind[api]')"
+)
+
+from fastapi.testclient import TestClient  # noqa: E402
+
+from papermind.api.app import create_app  # noqa: E402
+from papermind.catalog.index import CatalogEntry, CatalogIndex  # noqa: E402
 
 
 @pytest.fixture
