@@ -85,10 +85,9 @@ Premature at <75 papers. Simple alias file used instead. Revisit at 75+ papers.
 The transformative features. PaperMind becomes the link between scientific
 literature and scientific code.
 
-- [ ] **Code-to-paper provenance** — `# REF: doi:10.1029/... eq.7` annotations
-  in code that PaperMind indexes. `papermind provenance <file>` returns the papers
-  that justify each equation. Bidirectional: paper → code implementations, code →
-  source papers.
+- [x] **Code-to-paper provenance** — `# REF: doi:10.1029/... eq.7` annotations
+  in code that PaperMind indexes. `papermind provenance show|scan|suggest`.
+  Multi-language (Python/Fortran/C). MCP tool: `provenance`.
 - [ ] **Equation-to-code mapping** — given a paper equation and a code function,
   propose symbol → variable mapping with confidence scores. Flag discrepancies
   (missing terms, wrong exponents, unit mismatches).
@@ -100,8 +99,8 @@ literature and scientific code.
 - [ ] **Agent memory integration** — `kb:entry-id` references in MEMORY.md files.
   `papermind resolve` MCP tool expands references. `papermind sync-memory` validates
   and suggests references.
-- [ ] **Project profile** — auto-generated from codebase (imports, docstrings, config).
-  Drives search relevance, proactive suggestions, and ingestion priorities.
+- [x] **Project profile** — auto-generated from codebase (walk + provenance scan).
+  Languages, functions, classes, linked papers, inferred topics. MCP tool: `project_profile`.
 - [ ] **Research sessions** — shared scratchpad for multi-agent workflows.
   Lead agent creates session, sub-agents contribute findings, any agent reads
   accumulated results.
