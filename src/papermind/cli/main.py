@@ -146,30 +146,63 @@ def reindex_command(ctx: typer.Context) -> None:
 @app.command(name="serve")
 def serve_command(
     ctx: typer.Context,
+    http: bool = typer.Option(
+        False, "--http", help="Start HTTP REST API instead of MCP stdio."
+    ),
+    port: int = typer.Option(
+        8080, "--port", "-p", help="HTTP port (only with --http)."
+    ),
+    host: str = typer.Option(
+        "127.0.0.1", "--host", help="HTTP bind address (only with --http)."
+    ),
 ) -> None:
-    """Start the MCP server (stdio transport)."""
-    import asyncio
+    """Start the MCP server (stdio) or HTTP REST API.
 
-    from mcp.server.stdio import stdio_server
+    By default, starts the MCP server on stdio for AI assistant integration.
+    Use ``--http`` to start a FastAPI REST API server instead::
 
-    from papermind.mcp_server import create_server
-
+        papermind --kb ~/Documents/KnowledgeBase serve --http --port 8080
+    """
     kb_path = ctx.obj.get("kb") if ctx.obj else None
     if not kb_path:
         typer.echo("Error: --kb required for serve command", err=True)
         raise typer.Exit(code=1)
 
-    server = create_server(kb_path)
+    if http:
+        try:
+            import uvicorn
 
-    async def run() -> None:
-        async with stdio_server() as (read_stream, write_stream):
-            await server.run(
-                read_stream,
-                write_stream,
-                server.create_initialization_options(),
+            from papermind.api.app import create_app
+        except ImportError as exc:
+            typer.echo(
+                f"Error: HTTP mode requires the [api] extra: pip install 'papermind[api]'\n{exc}",
+                err=True,
             )
+            raise typer.Exit(code=1) from exc
 
-    asyncio.run(run())
+        api_app = create_app(kb_path)
+        console.print(f"Starting HTTP API on [bold]{host}:{port}[/bold]")
+        console.print(f"  KB: {kb_path}")
+        console.print(f"  Docs: http://{host}:{port}/docs")
+        uvicorn.run(api_app, host=host, port=port, log_level="info")
+    else:
+        import asyncio
+
+        from mcp.server.stdio import stdio_server
+
+        from papermind.mcp_server import create_server
+
+        server = create_server(kb_path)
+
+        async def run() -> None:
+            async with stdio_server() as (read_stream, write_stream):
+                await server.run(
+                    read_stream,
+                    write_stream,
+                    server.create_initialization_options(),
+                )
+
+        asyncio.run(run())
 
 
 @app.command(name="fetch")
