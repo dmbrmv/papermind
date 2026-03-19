@@ -28,10 +28,15 @@ def create_app(kb_path: Path) -> FastAPI:
     # Store KB path in app state for dependency injection
     app.state.kb_path = kb_path
 
-    # CORS — permissive for localhost development
+    # CORS — localhost development; restrict for production
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["*"],
+        allow_origins=[
+            "http://localhost:3000",
+            "http://localhost:8080",
+            "http://127.0.0.1:3000",
+            "http://127.0.0.1:8080",
+        ],
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],

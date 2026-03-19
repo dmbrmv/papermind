@@ -34,6 +34,10 @@ class CatalogEntry:
         return {k: v for k, v in asdict(self).items() if v is not None and v != ""}
 
 
+# Module-level constant — avoids repeated dataclass introspection
+_ENTRY_FIELDS: frozenset[str] = frozenset(f.name for f in fields(CatalogEntry))
+
+
 class CatalogIndex:
     """CRUD interface for the catalog.
 
@@ -62,7 +66,7 @@ class CatalogIndex:
         """Load entries from SQLite."""
         from papermind.db import db_get_all_entries, get_connection
 
-        known = {f.name for f in fields(CatalogEntry)}
+        known = _ENTRY_FIELDS
         with get_connection(self.base_path) as conn:
             rows = db_get_all_entries(conn)
         return [
@@ -74,7 +78,7 @@ class CatalogIndex:
         if not self._path.exists():
             return []
         data = json.loads(self._path.read_text())
-        known = {f.name for f in fields(CatalogEntry)}
+        known = _ENTRY_FIELDS
         return [
             CatalogEntry(**{k: v for k, v in e.items() if k in known}) for e in data
         ]
@@ -137,37 +141,18 @@ class CatalogIndex:
         return False
 
     def get(self, entry_id: str) -> CatalogEntry | None:
-        """Get an entry by ID."""
-        if self._use_db:
-            from papermind.db import db_get_entry, get_connection
-
-            known = {f.name for f in fields(CatalogEntry)}
-            with get_connection(self.base_path) as conn:
-                row = db_get_entry(conn, entry_id)
-            if row is None:
-                return None
-            return CatalogEntry(**{k: v for k, v in row.items() if k in known})
+        """Get an entry by ID (uses in-memory cache)."""
         for e in self.entries:
             if e.id == entry_id:
                 return e
         return None
 
     def has_doi(self, doi: str) -> bool:
-        """Check if a DOI already exists."""
-        if self._use_db:
-            from papermind.db import db_has_doi, get_connection
-
-            with get_connection(self.base_path) as conn:
-                return db_has_doi(conn, doi)
+        """Check if a DOI already exists (uses in-memory cache)."""
         return any(e.doi == doi for e in self.entries)
 
     def stats(self) -> dict:
-        """Compute summary statistics."""
-        if self._use_db:
-            from papermind.db import db_stats, get_connection
-
-            with get_connection(self.base_path) as conn:
-                return db_stats(conn)
+        """Compute summary statistics (uses in-memory cache)."""
         type_keys = {
             "paper": "papers",
             "package": "packages",

@@ -11,10 +11,13 @@ and research session data.
 from __future__ import annotations
 
 import json
+import logging
 import sqlite3
 from collections.abc import Generator
 from contextlib import contextmanager
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 
 def _db_path(kb_path: Path) -> Path:
@@ -51,6 +54,10 @@ def get_connection(kb_path: Path) -> Generator[sqlite3.Connection, None, None]:
 
     try:
         yield conn
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
     finally:
         conn.close()
 
@@ -125,13 +132,11 @@ def db_add_entry(conn: sqlite3.Connection, entry: dict) -> None:
             json.dumps(entry.get("files", [])),
         ),
     )
-    conn.commit()
 
 
 def db_remove_entry(conn: sqlite3.Connection, entry_id: str) -> None:
     """Remove a catalog entry by ID."""
     conn.execute("DELETE FROM entries WHERE id = ?", (entry_id,))
-    conn.commit()
 
 
 def db_get_entry(conn: sqlite3.Connection, entry_id: str) -> dict | None:
@@ -206,7 +211,6 @@ def db_create_session(
         "INSERT INTO sessions (id, name, created) VALUES (?, ?, ?)",
         (session_id, name, created),
     )
-    conn.commit()
 
 
 def db_add_session_entry(
@@ -224,7 +228,6 @@ def db_add_session_entry(
            VALUES (?, ?, ?, ?, ?)""",
         (session_id, agent, content, json.dumps(tags), timestamp),
     )
-    conn.commit()
 
 
 def db_get_session(conn: sqlite3.Connection, session_id: str) -> dict | None:
@@ -258,7 +261,7 @@ def db_get_session(conn: sqlite3.Connection, session_id: str) -> dict | None:
 def db_close_session(conn: sqlite3.Connection, session_id: str) -> bool:
     """Close a session. Returns True if found."""
     cursor = conn.execute("UPDATE sessions SET closed = 1 WHERE id = ?", (session_id,))
-    conn.commit()
+
     return cursor.rowcount > 0
 
 
@@ -346,7 +349,8 @@ def migrate_json_to_db(kb_path: Path) -> dict:
                             entry["timestamp"],
                         )
                     stats["sessions_migrated"] += 1
-                except Exception:
+                except Exception as exc:
+                    logger.warning("Skipping session %s: %s", session_file.name, exc)
                     continue
 
     return stats

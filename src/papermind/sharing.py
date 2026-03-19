@@ -136,17 +136,23 @@ def import_kb(
                 if zinfo.filename == "catalog.json":
                     continue
                 if zinfo.filename.startswith(entry_dir):
-                    target = kb_path / zinfo.filename
+                    target = (kb_path / zinfo.filename).resolve()
+                    # Path traversal guard
+                    if not target.is_relative_to(kb_path.resolve()):
+                        logger.warning(
+                            "Skipping unsafe path in archive: %s",
+                            zinfo.filename,
+                        )
+                        continue
                     target.parent.mkdir(parents=True, exist_ok=True)
                     target.write_bytes(zf.read(zinfo.filename))
                     stats["files"] += 1
 
-            # Add to catalog
-            from dataclasses import fields
+            # Collect for batch add
+            from papermind.catalog.index import _ENTRY_FIELDS
 
-            known = {f.name for f in fields(CatalogEntry)}
-            filtered = {k: v for k, v in entry_data.items() if k in known}
-            catalog.add(CatalogEntry(**filtered))
+            filtered = {k: v for k, v in entry_data.items() if k in _ENTRY_FIELDS}
+            catalog.entries.append(CatalogEntry(**filtered))
             stats["imported"] += 1
 
             # Track for dedup in this batch
@@ -154,6 +160,10 @@ def import_kb(
                 existing_dois.add(doi)
             if title:
                 existing_titles.add(title.lower())
+
+    # Single write for all entries
+    if stats["imported"] > 0:
+        catalog._save()
 
     # Regenerate catalog.md
     from papermind.catalog.render import render_catalog_md
