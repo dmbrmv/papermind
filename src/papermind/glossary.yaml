@@ -190,10 +190,10 @@ KGE:
   name: Kling-Gupta Efficiency
   definition: >
     Multi-component performance metric decomposing model skill into
-    correlation (r), variability bias (alpha), and volume bias (beta).
-    KGE = 1 - sqrt((r-1)^2 + (alpha-1)^2 + (beta-1)^2). Perfect
-    score is 1.0. Preferred over NSE for hydrological model evaluation
-    because it avoids the NSE bias toward matching peak flows.
+    correlation ($r$), variability bias ($\alpha$), and volume bias ($\beta$).
+    $KGE = 1 - \sqrt{(r-1)^2 + (\alpha-1)^2 + (\beta-1)^2}$.
+    Perfect score is 1.0. Preferred over NSE for hydrological model
+    evaluation because it avoids the NSE bias toward matching peak flows.
   range: [-inf, 1.0]
   unit: dimensionless
   related: [calibration, NSE, correlation, performance]
@@ -203,9 +203,10 @@ NSE:
   name: Nash-Sutcliffe Efficiency
   definition: >
     Measures how well the model simulation matches observed discharge
-    relative to using the observed mean as a predictor. NSE = 1 -
-    sum((obs-sim)^2) / sum((obs-mean(obs))^2). Values > 0.5 are
-    generally considered acceptable. Biased toward matching peak flows.
+    relative to using the observed mean as a predictor.
+    $NSE = 1 - \frac{\sum(O_i - S_i)^2}{\sum(O_i - \bar{O})^2}$.
+    Values > 0.5 are generally considered acceptable.
+    Biased toward matching peak flows.
   range: [-inf, 1.0]
   unit: dimensionless
   related: [calibration, KGE, performance, RMSE]

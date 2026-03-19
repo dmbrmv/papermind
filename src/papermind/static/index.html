@@ -4,72 +4,86 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>PaperMind</title>
-<link href="https://fonts.googleapis.com/css2?family=Crimson+Pro:ital,wght@0,400;0,600;1,400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Crimson+Pro:ital,wght@0,400;0,600;0,700;1,400&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+<script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/marked@12.0.0/marked.min.js"></script>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 :root{
-  --bg:#0f1117;--bg2:#161822;--bg3:#1c1f2e;
-  --fg:#eef0f5;--fg2:#b8bcc8;--accent:#e0b87a;--accent2:#8db5e0;
-  --border:#252838;--hover:#1f2336;
-  --serif:'Crimson Pro',Georgia,serif;--mono:'JetBrains Mono',monospace;
+  --bg:#F5F0E8;--bg2:#EDE8DD;--bg3:#E3DDD1;
+  --fg:#2D2B27;--fg2:#6B6560;--accent:#C96B2E;--accent2:#1A5276;
+  --border:#D4CFC5;--hover:#E8E2D6;--card:#FFFFFF;
+  --serif:'Crimson Pro',Georgia,serif;
+  --body:'Source Serif 4','Crimson Pro',Georgia,serif;
+  --mono:'JetBrains Mono',monospace;
 }
-body{font-family:var(--serif);background:var(--bg);color:var(--fg);line-height:1.6;min-height:100vh;font-size:16px;font-weight:400;-webkit-font-smoothing:antialiased}
+body{font-family:var(--body);background:var(--bg);color:var(--fg);line-height:1.75;min-height:100vh;font-size:19px;-webkit-font-smoothing:antialiased}
 a{color:var(--accent2);text-decoration:none}
 a:hover{text-decoration:underline}
 
-.app{display:grid;grid-template-columns:220px 1fr;grid-template-rows:auto 1fr;height:100vh}
-header{grid-column:1/-1;padding:12px 24px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:20px;background:var(--bg2)}
-header h1{font-family:var(--mono);font-size:14px;font-weight:500;color:var(--accent);letter-spacing:2px;text-transform:uppercase}
-header .stats{font-family:var(--mono);font-size:11px;color:var(--fg2);margin-left:auto}
+.app{display:grid;grid-template-columns:280px 1fr;grid-template-rows:auto 1fr;height:100vh}
 
-.sidebar{background:var(--bg2);border-right:1px solid var(--border);padding:16px;overflow-y:auto}
-.sidebar h3{font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:1.5px;color:var(--fg2);margin:16px 0 8px}
-.topic{display:block;padding:5px 10px;font-size:14px;color:var(--fg2);cursor:pointer;border-radius:4px;border:none;background:none;width:100%;text-align:left;font-family:var(--serif)}
+header{grid-column:1/-1;padding:16px 32px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:20px;background:var(--bg2)}
+header h1{font-family:var(--serif);font-size:22px;font-weight:700;color:var(--accent);letter-spacing:1px}
+header .stats{font-family:var(--mono);font-size:14px;color:var(--fg2);margin-left:auto}
+
+.sidebar{background:var(--bg2);border-right:1px solid var(--border);padding:24px 20px;overflow-y:auto}
+.sidebar h3{font-family:var(--mono);font-size:12px;text-transform:uppercase;letter-spacing:2px;color:var(--fg2);margin:24px 0 12px;font-weight:500}
+.topic{display:block;padding:8px 14px;font-size:18px;color:var(--fg2);cursor:pointer;border-radius:6px;border:none;background:none;width:100%;text-align:left;font-family:var(--body);transition:all .12s}
 .topic:hover,.topic.active{background:var(--hover);color:var(--fg)}
-.topic.active{border-left:2px solid var(--accent);padding-left:8px}
-.topic .count{float:right;font-family:var(--mono);font-size:11px;color:var(--fg2)}
-.nav-btn{display:block;padding:8px 10px;font-size:14px;color:var(--fg2);cursor:pointer;border-radius:4px;border:none;background:none;width:100%;text-align:left;font-family:var(--serif)}
+.topic.active{border-left:3px solid var(--accent);padding-left:11px;color:var(--accent);font-weight:600}
+.topic .count{float:right;font-family:var(--mono);font-size:14px;color:var(--fg2)}
+.nav-btn{display:block;padding:10px 14px;font-size:18px;color:var(--fg2);cursor:pointer;border-radius:6px;border:none;background:none;width:100%;text-align:left;font-family:var(--body);transition:all .12s}
 .nav-btn:hover{background:var(--hover);color:var(--fg)}
-.nav-btn.active{color:var(--accent)}
+.nav-btn.active{color:var(--accent);font-weight:600}
 
-main{overflow-y:auto;padding:24px 32px}
-.search-bar{display:flex;gap:8px;margin-bottom:24px}
-.search-bar input{flex:1;background:var(--bg3);border:1px solid var(--border);color:var(--fg);padding:10px 14px;font-family:var(--serif);font-size:15px;border-radius:4px;outline:none}
-.search-bar input:focus{border-color:var(--accent2)}
-.search-bar button{background:var(--accent2);color:var(--bg);border:none;padding:10px 18px;font-family:var(--mono);font-size:12px;border-radius:4px;cursor:pointer;text-transform:uppercase;letter-spacing:1px}
+main{overflow-y:auto;padding:32px 40px}
+.search-bar{display:flex;gap:10px;margin-bottom:28px}
+.search-bar input,.search-bar textarea{flex:1;background:var(--card);border:1px solid var(--border);color:var(--fg);padding:14px 18px;font-family:var(--body);font-size:18px;border-radius:8px;outline:none;box-shadow:0 1px 3px rgba(0,0,0,.04)}
+.search-bar input:focus,.search-bar textarea:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(201,107,46,.12)}
+.search-bar button{background:var(--accent);color:#fff;border:none;padding:14px 24px;font-family:var(--mono);font-size:14px;border-radius:8px;cursor:pointer;text-transform:uppercase;letter-spacing:1.5px;font-weight:500;transition:background .15s}
+.search-bar button:hover{background:#B55E24}
 
-.paper-item{padding:14px 16px;border-radius:4px;cursor:pointer;border-left:3px solid transparent;transition:all .15s}
-.paper-item:hover{background:var(--hover);border-left-color:var(--accent2)}
-.paper-item .title{font-size:16px;font-weight:600;margin-bottom:4px}
-.paper-item .meta{font-family:var(--mono);font-size:12px;color:var(--fg2)}
-.paper-item .meta span{margin-right:12px}
+.paper-item{padding:18px 20px;border-radius:8px;cursor:pointer;border-left:3px solid transparent;transition:all .15s;margin-bottom:2px}
+.paper-item:hover{background:var(--card);border-left-color:var(--accent);box-shadow:0 2px 8px rgba(0,0,0,.06)}
+.paper-item .title{font-family:var(--serif);font-size:21px;font-weight:600;margin-bottom:6px;color:var(--fg)}
+.paper-item .meta{font-family:var(--mono);font-size:13px;color:var(--fg2)}
+.paper-item .meta span{margin-right:14px}
 
-.detail{max-width:720px}
-.detail .back{font-family:var(--mono);font-size:11px;color:var(--fg2);cursor:pointer;margin-bottom:16px;display:inline-block;border:none;background:none}
+.detail{max-width:760px}
+.detail .back{font-family:var(--mono);font-size:13px;color:var(--fg2);cursor:pointer;margin-bottom:20px;display:inline-block;border:none;background:none;transition:color .1s}
 .detail .back:hover{color:var(--accent)}
-.detail h2{font-size:26px;font-weight:600;line-height:1.3;margin-bottom:12px}
-.detail .abstract{font-style:italic;color:var(--fg);margin-bottom:20px;padding:16px;background:var(--bg2);border-radius:4px;border-left:3px solid var(--accent)}
-.detail .content{white-space:pre-wrap;font-size:16px;line-height:1.8;color:var(--fg)}
-.eq-item{font-family:var(--mono);font-size:14px;padding:10px 14px;background:var(--bg3);border-radius:4px;margin:4px 0;overflow-x:auto;color:var(--fg)}
+.detail h2{font-family:var(--serif);font-size:32px;font-weight:700;line-height:1.3;margin-bottom:14px;color:var(--fg)}
+.detail .abstract{font-style:italic;color:var(--fg);margin-bottom:24px;padding:20px 24px;background:var(--card);border-radius:8px;border-left:4px solid var(--accent);font-size:18px;line-height:1.8;box-shadow:0 1px 4px rgba(0,0,0,.05)}
+.detail .content{font-size:18px;line-height:1.85;color:var(--fg)}
+.detail .content h1,.detail .content h2,.detail .content h3{font-family:var(--serif);color:var(--fg);margin:28px 0 12px;font-weight:600}
+.detail .content h1{font-size:26px} .detail .content h2{font-size:22px} .detail .content h3{font-size:19px}
+.detail .content p{margin:10px 0}
+.detail .content ul,.detail .content ol{margin:10px 0 10px 28px}
+.detail .content code{font-family:var(--mono);background:var(--bg3);padding:3px 7px;border-radius:4px;font-size:15px}
+.detail .content pre{background:var(--bg2);padding:16px;border-radius:8px;overflow-x:auto;margin:16px 0;border:1px solid var(--border)}
+.detail .content table{border-collapse:collapse;margin:16px 0;width:100%}
+.detail .content th,.detail .content td{border:1px solid var(--border);padding:8px 12px;text-align:left;font-size:16px}
+.detail .content th{background:var(--bg3);font-weight:600}
+.detail .content blockquote{border-left:4px solid var(--accent);padding:8px 16px;color:var(--fg2);margin:12px 0;background:var(--card);border-radius:0 8px 8px 0}
+.detail .content img{max-width:100%;border-radius:6px}
+.eq-item{font-size:18px;padding:18px 22px;background:var(--card);border-radius:8px;margin:8px 0;overflow-x:auto;color:var(--fg);border:1px solid var(--border);box-shadow:0 1px 3px rgba(0,0,0,.04)}
 
-.dashboard{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:16px;margin-bottom:32px}
-.stat-card{background:var(--bg2);border:1px solid var(--border);border-radius:6px;padding:20px;text-align:center}
-.stat-card .number{font-family:var(--mono);font-size:32px;font-weight:500;color:var(--accent)}
-.stat-card .label{font-size:12px;color:var(--fg2);text-transform:uppercase;letter-spacing:1px;margin-top:4px}
-
-.session-item{padding:12px 16px;background:var(--bg2);border-radius:4px;margin:8px 0;border-left:3px solid var(--accent2)}
-.explain-box{margin-top:24px;padding:20px;background:var(--bg2);border-radius:6px;border:1px solid var(--border)}
-.explain-box h3{font-size:18px;color:var(--accent);margin-bottom:8px}
-.explain-box .range{font-family:var(--mono);font-size:13px;color:var(--accent2)}
-.explain-box .ref{font-size:12px;color:var(--fg2);margin-top:8px;font-style:italic}
+.session-item{padding:16px 20px;background:var(--card);border-radius:8px;margin:10px 0;border-left:4px solid var(--accent2);box-shadow:0 1px 3px rgba(0,0,0,.04);font-size:18px}
+.explain-box{margin-top:28px;padding:28px;background:var(--card);border-radius:10px;border:1px solid var(--border);box-shadow:0 2px 8px rgba(0,0,0,.05)}
+.explain-box h3{font-family:var(--serif);font-size:26px;color:var(--accent);margin-bottom:14px;font-weight:700}
+.explain-box .range{font-family:var(--mono);font-size:16px;color:var(--accent2);margin-top:12px}
+.explain-box .ref{font-size:15px;color:var(--fg2);margin-top:12px;font-style:italic}
 
 @media(max-width:768px){
   .app{grid-template-columns:1fr}
   .sidebar{display:none}
-  main{padding:16px}
+  main{padding:20px}
 }
-.empty{text-align:center;padding:60px 20px;color:var(--fg2);font-style:italic}
-.loading{text-align:center;padding:40px;color:var(--fg2);font-family:var(--mono);font-size:12px}
+.empty{text-align:center;padding:80px 20px;color:var(--fg2);font-style:italic;font-size:18px}
+.loading{text-align:center;padding:60px;color:var(--fg2);font-family:var(--mono);font-size:14px}
 </style>
 </head>
 <body>
@@ -93,6 +107,44 @@ main{overflow-y:auto;padding:24px 32px}
 const API='/api/v1';
 let currentTopic='',topics={};
 
+function renderMarkdown(text){
+  if(typeof marked!=='undefined'){
+    let html=marked.parse(text);
+    html=html.replace(
+      /(10\.\d{4,9}\/[-._;()\/:A-Za-z0-9]+)/g,
+      '<a href="https://doi.org/$1" target="_blank" style="color:var(--accent2)">doi:$1</a>'
+    );
+    return html;
+  }
+  const d=document.createElement('div');
+  d.textContent=text;
+  return '<pre style="white-space:pre-wrap">'+d.innerHTML+'</pre>';
+}
+
+function renderLatexInElement(el){
+  if(typeof renderMathInElement!=='undefined'){
+    renderMathInElement(el,{
+      delimiters:[
+        {left:'$$',right:'$$',display:true},
+        {left:'$',right:'$',display:false},
+        {left:'\\(',right:'\\)',display:false},
+        {left:'\\[',right:'\\]',display:true},
+      ],
+      throwOnError:false
+    });
+  }
+}
+
+function normalizeTitle(s){
+  if(!s)return'Untitled';
+  const upper=s.replace(/[^A-Za-z]/g,'').split('').filter(c=>c===c.toUpperCase()&&c!==c.toLowerCase()).length;
+  const alpha=s.replace(/[^A-Za-z]/g,'').length;
+  if(alpha>0&&upper/alpha>0.6){
+    return s.toLowerCase().replace(/(?:^|\s|[-/])\S/g,c=>c.toUpperCase());
+  }
+  return s;
+}
+
 function esc(s){
   if(!s)return '';
   const d=document.createElement('div');
@@ -101,7 +153,6 @@ function esc(s){
 }
 
 function setHTML(el,html){
-  // Using DOMParser for safer HTML insertion from our own templates
   if(typeof el==='string')el=document.getElementById(el);
   el.innerHTML='';
   const t=document.createElement('template');
@@ -116,14 +167,13 @@ async function api(path,opts){
 }
 
 async function init(){
-  // Wire nav buttons
   document.querySelectorAll('.nav-btn').forEach(b=>{
     b.addEventListener('click',()=>showView(b.dataset.view));
   });
   const[stats]=await Promise.all([api('/stats')]);
   topics=stats.topics||{};
   document.getElementById('header-stats').textContent=
-    `${stats.papers} papers | ${stats.packages} pkgs | ${stats.codebases} codebases`;
+    `${stats.papers} papers \u00b7 ${stats.packages} packages \u00b7 ${stats.codebases} codebases`;
   renderTopics();
   showView('browse');
 }
@@ -166,7 +216,6 @@ async function loadPapers(query){
   const m=document.getElementById('main');
   m.textContent='';
 
-  // Search bar
   const bar=document.createElement('div');
   bar.className='search-bar';
   const input=document.createElement('input');
@@ -196,7 +245,7 @@ async function loadPapers(query){
       const item=document.createElement('div');
       item.className='paper-item';
       const title=document.createElement('div');
-      title.className='title';title.textContent=p.title||'Untitled';
+      title.className='title';title.textContent=normalizeTitle(p.title);
       const meta=document.createElement('div');
       meta.className='meta';
       if(p.topic){const s=document.createElement('span');s.textContent=p.topic;meta.appendChild(s);}
@@ -231,13 +280,13 @@ async function showPaper(id){
     back.addEventListener('click',()=>showView('browse'));
     d.appendChild(back);
 
-    const h2=document.createElement('h2');h2.textContent=p.title||'Untitled';d.appendChild(h2);
+    const h2=document.createElement('h2');h2.textContent=normalizeTitle(p.title);d.appendChild(h2);
 
     if(p.doi){
       const a=document.createElement('a');
       a.href='https://doi.org/'+encodeURIComponent(p.doi);
       a.target='_blank';a.textContent='doi:'+p.doi;
-      a.style.cssText='font-family:var(--mono);font-size:12px;color:var(--accent2);display:block;margin-bottom:16px';
+      a.style.cssText='font-family:var(--mono);font-size:15px;color:var(--accent2);display:block;margin-bottom:16px';
       d.appendChild(a);
     }
 
@@ -247,7 +296,7 @@ async function showPaper(id){
     if(p.tags&&p.tags.length)metaParts.push('Tags: '+p.tags.join(', '));
     if(metaParts.length){
       const md=document.createElement('div');
-      md.style.cssText='font-family:var(--mono);font-size:12px;color:var(--fg2);margin-bottom:16px';
+      md.style.cssText='font-family:var(--mono);font-size:14px;color:var(--fg2);margin-bottom:20px';
       md.textContent=metaParts.join(' \u00b7 ');d.appendChild(md);
     }
 
@@ -257,22 +306,46 @@ async function showPaper(id){
     }
 
     if(p.equations&&p.equations.length){
-      const h3=document.createElement('h3');
-      h3.style.cssText='font-size:14px;color:var(--accent);margin:20px 0 8px';
-      h3.textContent='Equations';d.appendChild(h3);
-      for(const eq of p.equations){
-        const ei=document.createElement('div');ei.className='eq-item';
-        ei.textContent=(eq.number?'('+eq.number+') ':'')+eq.latex;
-        d.appendChild(ei);
+      const realEqs=p.equations.filter(eq=>{
+        const l=(eq.latex||'').trim();
+        if(l.length<15)return false;
+        if(/^\^?\{?[\d,\s-]+\}?$/.test(l))return false;
+        if(!l.includes('=')&&!l.includes('\\frac')&&!l.includes('\\sum')&&!l.includes('\\int'))return false;
+        return true;
+      });
+      if(realEqs.length){
+        const h3=document.createElement('h3');
+        h3.style.cssText='font-family:var(--serif);font-size:20px;color:var(--accent);margin:28px 0 12px;font-weight:600';
+        h3.textContent='Equations ('+realEqs.length+')';d.appendChild(h3);
+        for(const eq of realEqs){
+          const ei=document.createElement('div');ei.className='eq-item';
+          if(eq.context||eq.section){
+            const ctx=document.createElement('div');
+            ctx.style.cssText='font-size:14px;color:var(--fg2);margin-bottom:10px;font-style:italic;line-height:1.5';
+            ctx.textContent=eq.context||('Section: '+eq.section);
+            ei.appendChild(ctx);
+          }
+          const math=document.createElement('div');
+          const label=eq.number?'('+eq.number+')\\quad ':'';
+          try{
+            katex.render(label+eq.latex,math,{throwOnError:false,displayMode:true});
+          }catch(e){
+            math.textContent=(eq.number?'('+eq.number+') ':'')+eq.latex;
+          }
+          ei.appendChild(math);
+          d.appendChild(ei);
+        }
       }
     }
 
     if(p.content){
       const c=document.createElement('div');c.className='content';
-      c.textContent=p.content.substring(0,3000)+(p.content.length>3000?'\n\n[...truncated]':'');
+      const raw=p.content.substring(0,5000)+(p.content.length>5000?'\n\n*[...truncated]*':'');
+      c.innerHTML=renderMarkdown(raw);
       d.appendChild(c);
     }
     m.appendChild(d);
+    renderLatexInElement(d);
   }catch(e){
     m.textContent='Error: '+e.message;
   }
@@ -282,7 +355,7 @@ async function loadSessions(){
   const m=document.getElementById('main');
   m.textContent='';
   const h2=document.createElement('h2');
-  h2.textContent='Research Sessions';h2.style.marginBottom='20px';
+  h2.textContent='Research Sessions';h2.style.cssText='font-family:var(--serif);margin-bottom:24px;font-size:28px';
   m.appendChild(h2);
   try{
     const data=await api('/sessions');
@@ -294,9 +367,9 @@ async function loadSessions(){
     for(const s of sessions){
       const item=document.createElement('div');item.className='session-item';
       const name=document.createElement('div');
-      name.style.fontWeight='600';name.textContent=s.name;
+      name.style.cssText='font-weight:600;font-size:19px';name.textContent=s.name;
       const meta=document.createElement('div');
-      meta.style.cssText='font-family:var(--mono);font-size:11px;color:var(--fg2)';
+      meta.style.cssText='font-family:var(--mono);font-size:13px;color:var(--fg2);margin-top:4px';
       meta.textContent=`${s.entry_count} entries \u00b7 ${s.closed?'closed':'open'} \u00b7 ${(s.created||'').split('T')[0]}`;
       item.appendChild(name);item.appendChild(meta);
       item.style.cursor='pointer';
@@ -317,13 +390,12 @@ async function showSessionDetail(sid){
     m.textContent='';
     const back=document.createElement('button');
     back.className='back';back.textContent='\u2190 Back to sessions';
-    back.style.cssText='font-family:var(--mono);font-size:11px;color:var(--fg2);cursor:pointer;border:none;background:none;margin-bottom:16px;display:block';
     back.addEventListener('click',()=>showView('sessions'));
     m.appendChild(back);
     const h2=document.createElement('h2');
-    h2.textContent=data.name;h2.style.marginBottom='8px';m.appendChild(h2);
+    h2.textContent=data.name;h2.style.cssText='font-family:var(--serif);font-size:28px;margin-bottom:8px';m.appendChild(h2);
     const status=document.createElement('div');
-    status.style.cssText='font-family:var(--mono);font-size:11px;color:var(--fg2);margin-bottom:20px';
+    status.style.cssText='font-family:var(--mono);font-size:13px;color:var(--fg2);margin-bottom:24px';
     status.textContent=`${data.entries.length} entries \u00b7 ${data.closed?'closed':'open'} \u00b7 ${(data.created||'').split('T')[0]}`;
     m.appendChild(status);
     if(!data.entries.length){
@@ -332,16 +404,17 @@ async function showSessionDetail(sid){
     }
     for(const entry of data.entries){
       const card=document.createElement('div');
-      card.style.cssText='padding:12px 16px;background:var(--bg2);border-radius:4px;margin:8px 0;border-left:3px solid var(--accent)';
+      card.style.cssText='padding:16px 20px;background:var(--card);border-radius:8px;margin:10px 0;border-left:4px solid var(--accent);box-shadow:0 1px 3px rgba(0,0,0,.04)';
       const agent=document.createElement('div');
-      agent.style.cssText='font-family:var(--mono);font-size:11px;color:var(--accent2);margin-bottom:4px';
+      agent.style.cssText='font-family:var(--mono);font-size:13px;color:var(--accent2);margin-bottom:6px';
       agent.textContent=`${entry.agent} \u00b7 ${(entry.timestamp||'').split('T')[0]}`;
       const content=document.createElement('div');
+      content.style.fontSize='17px';
       content.textContent=entry.content;
       card.appendChild(agent);card.appendChild(content);
       if(entry.tags&&entry.tags.length){
         const tags=document.createElement('div');
-        tags.style.cssText='font-family:var(--mono);font-size:10px;color:var(--fg2);margin-top:4px';
+        tags.style.cssText='font-family:var(--mono);font-size:12px;color:var(--fg2);margin-top:6px';
         tags.textContent='tags: '+entry.tags.join(', ');
         card.appendChild(tags);
       }
@@ -353,15 +426,15 @@ async function showSessionDetail(sid){
 function showCiteView(){
   const m=document.getElementById('main');m.textContent='';
   const h2=document.createElement('h2');
-  h2.textContent='Find References';h2.style.marginBottom='8px';m.appendChild(h2);
+  h2.textContent='Find References';h2.style.cssText='font-family:var(--serif);font-size:28px;margin-bottom:8px';m.appendChild(h2);
   const desc=document.createElement('p');
-  desc.style.cssText='color:var(--fg2);font-size:14px;margin-bottom:16px';
+  desc.style.cssText='color:var(--fg2);font-size:17px;margin-bottom:20px;line-height:1.6';
   desc.textContent='Type a claim and find supporting papers from your KB. If coverage is thin, searches OpenAlex automatically.';
   m.appendChild(desc);
   const bar=document.createElement('div');bar.className='search-bar';
   const input=document.createElement('textarea');
   input.id='cite-q';input.placeholder='e.g., SWAT+ has been widely used for watershed modeling...';
-  input.style.cssText='flex:1;background:var(--bg3);border:1px solid var(--border);color:var(--fg);padding:10px 14px;font-family:var(--serif);font-size:15px;border-radius:4px;outline:none;resize:vertical;min-height:60px';
+  input.style.cssText='flex:1;background:var(--card);border:1px solid var(--border);color:var(--fg);padding:14px 18px;font-family:var(--body);font-size:18px;border-radius:8px;outline:none;resize:vertical;min-height:70px;box-shadow:0 1px 3px rgba(0,0,0,.04)';
   const btn=document.createElement('button');btn.textContent='CITE';
   btn.addEventListener('click',doCite);
   bar.appendChild(input);bar.appendChild(btn);m.appendChild(bar);
@@ -384,28 +457,25 @@ async function doCite(){
 
     if(d.total===0){el.textContent='No references found.';return;}
 
-    // KB refs
     if(d.kb_refs&&d.kb_refs.length){
       const h3=document.createElement('h3');
-      h3.style.cssText='font-size:14px;color:var(--accent);margin:16px 0 8px';
+      h3.style.cssText='font-family:var(--serif);font-size:20px;color:var(--accent);margin:20px 0 10px;font-weight:600';
       h3.textContent='From Knowledge Base ('+d.kb_refs.length+')';
       el.appendChild(h3);
       for(const ref of d.kb_refs){
         const card=document.createElement('div');
-        card.style.cssText='padding:12px 16px;background:var(--bg2);border-radius:4px;margin:6px 0;border-left:3px solid var(--accent2);cursor:pointer';
+        card.style.cssText='padding:14px 18px;background:var(--card);border-radius:8px;margin:8px 0;border-left:4px solid var(--accent2);cursor:pointer;box-shadow:0 1px 3px rgba(0,0,0,.04);transition:box-shadow .12s';
         const title=document.createElement('div');
-        title.style.fontWeight='600';title.textContent=ref.title;
+        title.style.cssText='font-weight:600;font-size:18px';title.textContent=normalizeTitle(ref.title);
         const meta=document.createElement('div');
-        meta.style.cssText='font-family:var(--mono);font-size:11px;color:var(--fg2);margin-top:4px';
+        meta.style.cssText='font-family:var(--mono);font-size:13px;color:var(--fg2);margin-top:4px';
         const parts=[];
         if(ref.topic)parts.push(ref.topic);
         if(ref.doi)parts.push('doi:'+ref.doi);
         meta.textContent=parts.join(' \u00b7 ');
         card.appendChild(title);card.appendChild(meta);
         if(ref.path){
-          // Find paper ID from path for click-through
           card.addEventListener('click',()=>{
-            // Try to extract ID from the catalog
             fetch(API+'/papers').then(r=>r.json()).then(data=>{
               const match=(data.papers||[]).find(p=>p.path===ref.path);
               if(match)showPaper(match.id);
@@ -416,43 +486,41 @@ async function doCite(){
       }
     }
 
-    // External refs
     if(d.external_only&&d.external_only.length){
       const h3=document.createElement('h3');
-      h3.style.cssText='font-size:14px;color:var(--fg2);margin:16px 0 8px';
+      h3.style.cssText='font-family:var(--serif);font-size:18px;color:var(--fg2);margin:20px 0 10px';
       h3.textContent='External ('+d.external_only.length+')';
       el.appendChild(h3);
       for(const ref of d.external_only){
         const card=document.createElement('div');
-        card.style.cssText='padding:10px 16px;background:var(--bg3);border-radius:4px;margin:4px 0';
+        card.style.cssText='padding:12px 18px;background:var(--bg2);border-radius:8px;margin:6px 0;font-size:17px';
         const title=document.createElement('div');
-        title.textContent=ref.title;
+        title.textContent=normalizeTitle(ref.title);
         const meta=document.createElement('div');
-        meta.style.cssText='font-family:var(--mono);font-size:11px;color:var(--fg2)';
+        meta.style.cssText='font-family:var(--mono);font-size:13px;color:var(--fg2)';
         if(ref.doi)meta.textContent='doi:'+ref.doi;
         card.appendChild(title);card.appendChild(meta);
         el.appendChild(card);
       }
     }
 
-    // Newly ingested
     if(d.newly_ingested&&d.newly_ingested.length){
       const h3=document.createElement('h3');
-      h3.style.cssText='font-size:14px;color:var(--accent);margin:16px 0 8px';
+      h3.style.cssText='font-family:var(--serif);font-size:18px;color:var(--accent);margin:20px 0 10px';
       h3.textContent='Auto-ingested ('+d.newly_ingested.length+')';
       el.appendChild(h3);
       for(const ref of d.newly_ingested){
         const card=document.createElement('div');
-        card.style.cssText='padding:10px 16px;background:var(--bg2);border-radius:4px;margin:4px 0;border-left:3px solid var(--accent)';
+        card.style.cssText='padding:12px 18px;background:var(--card);border-radius:8px;margin:6px 0;border-left:4px solid var(--accent);box-shadow:0 1px 3px rgba(0,0,0,.04)';
         const title=document.createElement('div');
-        title.style.fontWeight='600';title.textContent=ref.title+' (newly added to KB)';
+        title.style.cssText='font-weight:600;font-size:17px';title.textContent=normalizeTitle(ref.title)+' (newly added to KB)';
         card.appendChild(title);
         el.appendChild(card);
       }
     }
 
     const total=document.createElement('div');
-    total.style.cssText='font-family:var(--mono);font-size:11px;color:var(--fg2);margin-top:16px';
+    total.style.cssText='font-family:var(--mono);font-size:13px;color:var(--fg2);margin-top:20px';
     total.textContent=d.total+' reference(s) found';
     el.appendChild(total);
   }catch(e){el.textContent='Error: '+e.message;}
@@ -461,7 +529,7 @@ async function doCite(){
 function showExplainView(){
   const m=document.getElementById('main');m.textContent='';
   const h2=document.createElement('h2');
-  h2.textContent='Explain Parameter';h2.style.marginBottom='20px';m.appendChild(h2);
+  h2.textContent='Explain Parameter';h2.style.cssText='font-family:var(--serif);font-size:28px;margin-bottom:24px';m.appendChild(h2);
   const bar=document.createElement('div');bar.className='search-bar';
   const input=document.createElement('input');
   input.id='explain-q';input.placeholder='CN2, ESCO, alpha_bf, KGE...';
@@ -487,7 +555,8 @@ async function doExplain(){
     const d=await r.json();
     const box=document.createElement('div');box.className='explain-box';
     const h3=document.createElement('h3');h3.textContent=d.name;box.appendChild(h3);
-    const p=document.createElement('p');p.textContent=d.definition;box.appendChild(p);
+    const p=document.createElement('p');p.style.cssText='font-size:18px;line-height:1.8';
+    p.innerHTML=renderMarkdown(d.definition);box.appendChild(p);renderLatexInElement(p);
     if(d.range){
       const rng=document.createElement('div');rng.className='range';
       rng.textContent=`Range: ${d.range[0]} \u2013 ${d.range[1]}${d.unit?' '+d.unit:''}`;
@@ -495,7 +564,7 @@ async function doExplain(){
     }
     if(d.related&&d.related.length){
       const rel=document.createElement('div');
-      rel.style.cssText='margin-top:8px;font-size:13px';
+      rel.style.cssText='margin-top:10px;font-size:16px;color:var(--fg2)';
       rel.textContent='Related: '+d.related.join(', ');box.appendChild(rel);
     }
     if(d.ref){
@@ -503,7 +572,7 @@ async function doExplain(){
       ref.textContent=d.ref;box.appendChild(ref);
     }
     const src=document.createElement('div');
-    src.style.cssText='font-family:var(--mono);font-size:10px;color:var(--fg2);margin-top:8px';
+    src.style.cssText='font-family:var(--mono);font-size:12px;color:var(--fg2);margin-top:10px';
     src.textContent='source: '+d.source;box.appendChild(src);
     el.appendChild(box);
   }catch(e){el.textContent='Error: '+e.message;}

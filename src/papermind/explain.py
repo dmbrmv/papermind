@@ -63,7 +63,34 @@ def _glossary_lookup(concept: str) -> ExplainResult | None:
         if lower in related:
             return _entry_to_result(entry)
 
+    # Fuzzy match — find closest key by edit distance
+    best_key = None
+    best_dist = 3  # max edit distance threshold
+    for key in glossary:
+        d = _edit_distance(lower, key.lower())
+        if d < best_dist:
+            best_dist = d
+            best_key = key
+    if best_key is not None:
+        return _entry_to_result(glossary[best_key])
+
     return None
+
+
+def _edit_distance(a: str, b: str) -> int:
+    """Simple Levenshtein edit distance."""
+    if len(a) < len(b):
+        return _edit_distance(b, a)
+    if len(b) == 0:
+        return len(a)
+    prev = list(range(len(b) + 1))
+    for i, ca in enumerate(a):
+        curr = [i + 1]
+        for j, cb in enumerate(b):
+            cost = 0 if ca == cb else 1
+            curr.append(min(prev[j + 1] + 1, curr[j] + 1, prev[j] + cost))
+        prev = curr
+    return prev[len(b)]
 
 
 def _entry_to_result(entry: dict) -> ExplainResult:
