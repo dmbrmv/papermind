@@ -211,6 +211,52 @@ def create_server(kb_path: Path) -> Server:
                 },
             ),
             Tool(
+                name="resolve_refs",
+                description=(
+                    "Resolve kb:paper-id references in markdown text. "
+                    "Returns paper titles, paths, and validation status."
+                ),
+                inputSchema={
+                    "type": "object",
+                    "properties": {
+                        "text": {
+                            "type": "string",
+                            "description": "Markdown text containing kb: references",
+                        },
+                    },
+                    "required": ["text"],
+                },
+            ),
+            Tool(
+                name="verify_implementation",
+                description=(
+                    "Verify that code implements a paper equation. "
+                    "Returns coverage score, symbol mappings, and gaps."
+                ),
+                inputSchema={
+                    "type": "object",
+                    "properties": {
+                        "paper_id": {
+                            "type": "string",
+                            "description": "Paper ID in the KB",
+                        },
+                        "equation_number": {
+                            "type": "string",
+                            "description": "Equation number (e.g. '4.2')",
+                        },
+                        "file_path": {
+                            "type": "string",
+                            "description": "Absolute path to source file",
+                        },
+                        "function_name": {
+                            "type": "string",
+                            "description": "Optional function name",
+                        },
+                    },
+                    "required": ["paper_id", "equation_number", "file_path"],
+                },
+            ),
+            Tool(
                 name="equation_map",
                 description=(
                     "Map a LaTeX equation's symbols to code variables. "
@@ -302,6 +348,10 @@ def create_server(kb_path: Path) -> Server:
             return _handle_project_profile(kb_path, arguments)
         elif name == "equation_map":
             return _handle_equation_map(arguments)
+        elif name == "resolve_refs":
+            return _handle_resolve_refs(kb_path, arguments)
+        elif name == "verify_implementation":
+            return _handle_verify(kb_path, arguments)
         raise ValueError(f"Unknown tool: {name}")
 
     return server
@@ -523,6 +573,37 @@ def _handle_watch(kb_path: Path, args: dict) -> list[TextContent]:
             text=format_watch_output(file_path.name, results),
         )
     ]
+
+
+def _handle_resolve_refs(kb_path: Path, args: dict) -> list[TextContent]:
+    """Resolve kb: references in markdown text."""
+    from papermind.memory import extract_kb_refs, format_resolved_refs, resolve_refs
+
+    text = args["text"]
+    refs = extract_kb_refs(text)
+    if not refs:
+        return [TextContent(type="text", text="No kb: references found in text.")]
+
+    resolved = resolve_refs(refs, kb_path)
+    return [TextContent(type="text", text=format_resolved_refs(resolved))]
+
+
+def _handle_verify(kb_path: Path, args: dict) -> list[TextContent]:
+    """Verify code implements a paper equation."""
+    from papermind.verify import format_verification, verify_implementation
+
+    file_path = Path(args["file_path"])
+    if not file_path.exists():
+        return [TextContent(type="text", text=f"File not found: {file_path}")]
+
+    result = verify_implementation(
+        args["paper_id"],
+        args["equation_number"],
+        file_path,
+        args.get("function_name"),
+        kb_path,
+    )
+    return [TextContent(type="text", text=format_verification(result))]
 
 
 def _handle_equation_map(args: dict) -> list[TextContent]:

@@ -101,6 +101,12 @@ app.add_typer(provenance_app, name="provenance")
 app.command(name="profile")(profile_cmd)
 app.command(name="brief")(brief_cmd)
 app.command(name="chat")(chat_cmd)
+from papermind.cli.memory_cmd import resolve_cmd, validate_refs_cmd  # noqa: E402
+from papermind.cli.verify import verify_cmd  # noqa: E402
+
+app.command(name="resolve")(resolve_cmd)
+app.command(name="validate-refs")(validate_refs_cmd)
+app.command(name="verify")(verify_cmd)
 app.command(name="pitfall-add")(pitfall_add_cmd)
 app.command(name="pitfall-list")(pitfall_list_cmd)
 app.add_typer(tables_app, name="tables")
