@@ -109,10 +109,16 @@ literature and scientific code.
   - `papermind serve --http [--port 8080]`
   - Optional `[api]` extra (fastapi + uvicorn)
 
-## v3.1+ — Platform (future)
+### v3.1.0 (2026-03-19)
+- SQLite backend (WAL mode, batch commits, concurrent-safe)
+- Web UI — browser-based KB explorer at / (dark academic theme)
+- KB export/import — portable .pmkb archives with DOI dedup
+- 3-agent code review: security fixes (zip traversal, CORS), perf fixes
+  (batch commits, cache-first reads, _ENTRY_FIELDS constant)
+- 626 tests, 50+ CLI commands, 19 MCP tools, 15 REST endpoints
 
-- [ ] SQLite backend for sessions + catalog (concurrent multi-worker)
-- [ ] Web UI for browsing and searching the KB
-- [ ] Collaborative KBs (multi-user, shared collections)
+## v4.0+ — Future
+
 - [ ] Recommendation engine (suggest papers based on reading history)
 - [ ] MCP server split at 25+ tools
+- [ ] SQLite for sessions (currently JSON with write lock)
