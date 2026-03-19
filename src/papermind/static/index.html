@@ -19,7 +19,7 @@
   --body:'Source Serif 4','Crimson Pro',Georgia,serif;
   --mono:'JetBrains Mono',monospace;
 }
-body{font-family:var(--body);background:var(--bg);color:var(--fg);line-height:1.75;min-height:100vh;font-size:19px;-webkit-font-smoothing:antialiased}
+body{font-family:var(--body);background:var(--bg);color:var(--fg);line-height:1.75;height:100vh;font-size:19px;-webkit-font-smoothing:antialiased;overflow:hidden}
 a{color:var(--accent2);text-decoration:none}
 a:hover{text-decoration:underline}
 
@@ -39,7 +39,7 @@ header .stats{font-family:var(--mono);font-size:14px;color:var(--fg2);margin-lef
 .nav-btn:hover{background:var(--hover);color:var(--fg)}
 .nav-btn.active{color:var(--accent);font-weight:600}
 
-main{overflow-y:auto;padding:32px 40px}
+main{overflow-y:auto;padding:32px 40px;max-height:calc(100vh - 60px)}
 .search-bar{display:flex;gap:10px;margin-bottom:28px}
 .search-bar input,.search-bar textarea{flex:1;background:var(--card);border:1px solid var(--border);color:var(--fg);padding:14px 18px;font-family:var(--body);font-size:18px;border-radius:8px;outline:none;box-shadow:0 1px 3px rgba(0,0,0,.04)}
 .search-bar input:focus,.search-bar textarea:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(201,107,46,.12)}
@@ -105,14 +105,35 @@ main{overflow-y:auto;padding:32px 40px}
 </div>
 <script>
 const API='/api/v1';
-let currentTopic='',topics={};
+let currentTopic='',topics={},previousView=null,previousQuery=null;
 
 function renderMarkdown(text){
   if(typeof marked!=='undefined'){
     let html=marked.parse(text);
+    // Make DOIs clickable
     html=html.replace(
       /(10\.\d{4,9}\/[-._;()\/:A-Za-z0-9]+)/g,
       '<a href="https://doi.org/$1" target="_blank" style="color:var(--accent2)">doi:$1</a>'
+    );
+    // Make citations clickable — only inside parentheses or with "et al."
+    // Pattern 1: (Author Year) or (Author et al. Year) — inside parens
+    html=html.replace(
+      /\(([^)]{3,80})\)/g,
+      function(match,inner){
+        // Only process if it looks like citations (has Author Year pattern)
+        if(!/[A-Z][a-z]+[,\s]+\d{4}/.test(inner))return match;
+        // Skip if it's clearly not a citation (has =, +, *, numbers only)
+        if(/[=+*\/]/.test(inner))return match;
+        // Link each author-year pair inside
+        const linked=inner.replace(
+          /([A-Z][a-z]+(?:\s+(?:et\s+al\.?|and\s+[A-Z][a-z]+(?:\s+[A-Z][a-z]+)?))?)[,\s]+(\d{4})/g,
+          function(m,author,year){
+            const q=author.trim()+' '+year;
+            return '<a href="#" class="cite-link" data-query="'+q+'" style="cursor:pointer;text-decoration:underline;text-decoration-style:dotted;color:var(--accent2)">'+m+'</a>';
+          }
+        );
+        return '('+linked+')';
+      }
     );
     return html;
   }
@@ -120,6 +141,61 @@ function renderMarkdown(text){
   d.textContent=text;
   return '<pre style="white-space:pre-wrap">'+d.innerHTML+'</pre>';
 }
+
+// Color-code citation links: orange=in KB, blue=search
+async function colorCitations(container){
+  const links=container.querySelectorAll('.cite-link');
+  if(!links.length)return;
+  // Batch: search each unique query
+  const queries=new Map();
+  for(const link of links){
+    const q=link.dataset.query||'';
+    if(!queries.has(q))queries.set(q,[]);
+    queries.get(q).push(link);
+  }
+  for(const [q,qlinks] of queries){
+    try{
+      const data=await api('/search/scan?q='+encodeURIComponent(q)+'&limit=1');
+      const results=data.results||[];
+      const found=results.length>0&&results[0].score>0.3;
+      for(const link of qlinks){
+        if(found){
+          link.style.color='var(--accent)';
+          link.style.fontWeight='600';
+          link.dataset.paperId=results[0].id||'';
+          link.title='Found in KB (score: '+(results[0].score||0).toFixed(2)+') — click to open';
+        }else{
+          link.style.color='var(--accent2)';
+          link.title='Not in KB — click to search';
+        }
+      }
+    }catch(e){
+      for(const link of qlinks){
+        link.style.color='var(--accent2)';
+      }
+    }
+  }
+}
+
+// Wire citation clicks globally
+document.addEventListener('click',function(e){
+  const link=e.target.closest('.cite-link');
+  if(!link)return;
+  e.preventDefault();
+  const paperId=link.dataset.paperId;
+  if(paperId){
+    // In KB — open directly
+    showPaper(paperId);
+  }else{
+    // Not in KB — search
+    const query=link.dataset.query;
+    if(query){
+      previousView='browse';
+      loadPapers(query);
+      setActiveNav('browse');
+    }
+  }
+});
 
 function renderLatexInElement(el){
   if(typeof renderMathInElement!=='undefined'){
@@ -206,11 +282,25 @@ function setActiveNav(view){
 
 async function showView(view){
   setActiveNav(view);
+  history.pushState({view:view},'',`#${view}`);
   if(view==='browse')await loadPapers();
   else if(view==='cite')showCiteView();
   else if(view==='sessions')await loadSessions();
   else if(view==='explain')showExplainView();
 }
+
+// Browser back/forward
+window.addEventListener('popstate',function(e){
+  if(e.state&&e.state.view){
+    setActiveNav(e.state.view);
+    if(e.state.view==='browse')loadPapers(e.state.query);
+    else if(e.state.view==='cite')showCiteView();
+    else if(e.state.view==='sessions')loadSessions();
+    else if(e.state.view==='explain')showExplainView();
+  }else if(e.state&&e.state.paper){
+    showPaperNoHistory(e.state.paper);
+  }
+});
 
 async function loadPapers(query){
   const m=document.getElementById('main');
@@ -267,7 +357,14 @@ function doSearch(){
   loadPapers(q||undefined);
 }
 
+async function showPaperNoHistory(id){return _showPaper(id);}
 async function showPaper(id){
+  const activeBtn=document.querySelector('.nav-btn.active');
+  if(activeBtn)previousView=activeBtn.dataset.view;
+  history.pushState({paper:id},'',`#paper/${id}`);
+  return _showPaper(id);
+}
+async function _showPaper(id){
   const m=document.getElementById('main');
   m.textContent='Loading...';
   try{
@@ -276,8 +373,11 @@ async function showPaper(id){
     const d=document.createElement('div');d.className='detail';
 
     const back=document.createElement('button');
-    back.className='back';back.textContent='\u2190 Back to list';
-    back.addEventListener('click',()=>showView('browse'));
+    back.className='back';back.textContent='\u2190 Back';
+    back.addEventListener('click',()=>{
+      if(previousView)showView(previousView);
+      else showView('browse');
+    });
     d.appendChild(back);
 
     const h2=document.createElement('h2');h2.textContent=normalizeTitle(p.title);d.appendChild(h2);
@@ -319,11 +419,11 @@ async function showPaper(id){
         h3.textContent='Equations ('+realEqs.length+')';d.appendChild(h3);
         for(const eq of realEqs){
           const ei=document.createElement('div');ei.className='eq-item';
-          if(eq.context||eq.section){
-            const ctx=document.createElement('div');
-            ctx.style.cssText='font-size:14px;color:var(--fg2);margin-bottom:10px;font-style:italic;line-height:1.5';
-            ctx.textContent=eq.context||('Section: '+eq.section);
-            ei.appendChild(ctx);
+          if(eq.section){
+            const sec=document.createElement('div');
+            sec.style.cssText='font-family:var(--mono);font-size:12px;color:var(--fg2);margin-bottom:8px;text-transform:uppercase;letter-spacing:1px';
+            sec.textContent=eq.section;
+            ei.appendChild(sec);
           }
           const math=document.createElement('div');
           const label=eq.number?'('+eq.number+')\\quad ':'';
@@ -340,12 +440,18 @@ async function showPaper(id){
 
     if(p.content){
       const c=document.createElement('div');c.className='content';
-      const raw=p.content.substring(0,5000)+(p.content.length>5000?'\n\n*[...truncated]*':'');
+      // Skip header (title/authors/abstract are shown above)
+      // Find first ## or # heading after initial content
+      let raw=p.content;
+      const introIdx=raw.search(/\n#{1,2}\s+(?:Introduction|Background|Methods|1\s|2\s)/i);
+      if(introIdx>200)raw=raw.substring(introIdx);
+      raw=raw.substring(0,6000)+(raw.length>6000?'\n\n*[...truncated]*':'');
       c.innerHTML=renderMarkdown(raw);
       d.appendChild(c);
     }
     m.appendChild(d);
     renderLatexInElement(d);
+    colorCitations(d);
   }catch(e){
     m.textContent='Error: '+e.message;
   }
@@ -577,6 +683,77 @@ async function doExplain(){
     el.appendChild(box);
   }catch(e){el.textContent='Error: '+e.message;}
 }
+
+// Text selection → search popup
+let selPopup=null;
+document.addEventListener('mouseup',function(e){
+  if(selPopup){selPopup.remove();selPopup=null;}
+  // Don't show on buttons/inputs
+  if(e.target.closest('button,input,textarea,.search-bar,.cite-link'))return;
+  // Delay to let selection finalize
+  setTimeout(()=>{
+    const sel=window.getSelection();
+    const text=(sel&&sel.toString()||'').trim();
+    if(text.length<3||text.length>200)return;
+    if(!sel.rangeCount)return;
+
+    const range=sel.getRangeAt(0);
+    const rect=range.getBoundingClientRect();
+    if(rect.width===0)return;
+
+  selPopup=document.createElement('div');
+  selPopup.style.cssText='position:fixed;z-index:1000;display:flex;gap:6px;padding:6px 10px;background:var(--card);border:1px solid var(--border);border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,.12);font-size:14px;font-family:var(--mono)';
+  selPopup.style.left=rect.left+'px';
+  selPopup.style.top=(rect.bottom+6)+'px';
+
+  const searchBtn=document.createElement('button');
+  searchBtn.textContent='Search KB';
+  searchBtn.style.cssText='background:var(--accent);color:#fff;border:none;padding:6px 14px;border-radius:6px;cursor:pointer;font-family:var(--mono);font-size:13px';
+  searchBtn.addEventListener('click',()=>{
+    selPopup.remove();selPopup=null;
+    previousView='browse';
+    loadPapers(text);
+    setActiveNav('browse');
+  });
+
+  const citeBtn=document.createElement('button');
+  citeBtn.textContent='Find Refs';
+  citeBtn.style.cssText='background:var(--accent2);color:#fff;border:none;padding:6px 14px;border-radius:6px;cursor:pointer;font-family:var(--mono);font-size:13px';
+  citeBtn.addEventListener('click',()=>{
+    selPopup.remove();selPopup=null;
+    showCiteView();
+    setActiveNav('cite');
+    setTimeout(()=>{
+      const cq=document.getElementById('cite-q');
+      if(cq){cq.value=text;doCite();}
+    },100);
+  });
+
+  const explainBtn=document.createElement('button');
+  explainBtn.textContent='Explain';
+  explainBtn.style.cssText='background:var(--bg3);color:var(--fg);border:1px solid var(--border);padding:6px 14px;border-radius:6px;cursor:pointer;font-family:var(--mono);font-size:13px';
+  explainBtn.addEventListener('click',()=>{
+    selPopup.remove();selPopup=null;
+    showExplainView();
+    setActiveNav('explain');
+    setTimeout(()=>{
+      const eq=document.getElementById('explain-q');
+      if(eq){eq.value=text;doExplain();}
+    },100);
+  });
+
+  selPopup.appendChild(searchBtn);
+  selPopup.appendChild(citeBtn);
+  selPopup.appendChild(explainBtn);
+  document.body.appendChild(selPopup);
+  },50);
+});
+
+document.addEventListener('mousedown',function(e){
+  if(selPopup&&!selPopup.contains(e.target)){
+    selPopup.remove();selPopup=null;
+  }
+});
 
 init().catch(()=>{
   const m=document.getElementById('main');
