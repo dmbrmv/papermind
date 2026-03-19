@@ -211,6 +211,32 @@ def create_server(kb_path: Path) -> Server:
                 },
             ),
             Tool(
+                name="equation_map",
+                description=(
+                    "Map a LaTeX equation's symbols to code variables. "
+                    "Heuristic matching (exact, normalized, glossary, fuzzy). "
+                    "Returns proposed mappings and unmatched items."
+                ),
+                inputSchema={
+                    "type": "object",
+                    "properties": {
+                        "equation_latex": {
+                            "type": "string",
+                            "description": "LaTeX equation (e.g. 'Q = K_s \\cdot S^{0.5}')",
+                        },
+                        "file_path": {
+                            "type": "string",
+                            "description": "Absolute path to source file",
+                        },
+                        "function_name": {
+                            "type": "string",
+                            "description": "Optional function name to scope extraction",
+                        },
+                    },
+                    "required": ["equation_latex", "file_path"],
+                },
+            ),
+            Tool(
                 name="provenance",
                 description=(
                     "Extract # REF: code-to-paper annotations from a source file. "
@@ -274,6 +300,8 @@ def create_server(kb_path: Path) -> Server:
             return _handle_provenance(arguments)
         elif name == "project_profile":
             return _handle_project_profile(kb_path, arguments)
+        elif name == "equation_map":
+            return _handle_equation_map(arguments)
         raise ValueError(f"Unknown tool: {name}")
 
     return server
@@ -495,6 +523,22 @@ def _handle_watch(kb_path: Path, args: dict) -> list[TextContent]:
             text=format_watch_output(file_path.name, results),
         )
     ]
+
+
+def _handle_equation_map(args: dict) -> list[TextContent]:
+    """Map equation symbols to code variables."""
+    from papermind.equation_map import format_equation_map, map_equation_to_code
+
+    file_path = Path(args["file_path"])
+    if not file_path.exists():
+        return [TextContent(type="text", text=f"File not found: {file_path}")]
+
+    result = map_equation_to_code(
+        args["equation_latex"],
+        file_path,
+        args.get("function_name"),
+    )
+    return [TextContent(type="text", text=format_equation_map(result))]
 
 
 def _handle_provenance(args: dict) -> list[TextContent]:

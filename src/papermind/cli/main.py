@@ -85,6 +85,7 @@ app.add_typer(tags_app, name="tags")
 
 from papermind.cli.brief import brief_cmd  # noqa: E402
 from papermind.cli.chat import chat_cmd  # noqa: E402
+from papermind.cli.equation_map import equation_map_cmd  # noqa: E402
 from papermind.cli.explain import explain_cmd  # noqa: E402
 from papermind.cli.pitfall import pitfall_add_cmd, pitfall_list_cmd  # noqa: E402
 from papermind.cli.profile import profile_cmd  # noqa: E402
@@ -94,6 +95,7 @@ from papermind.cli.tables import tables_app  # noqa: E402
 from papermind.cli.watch import watch_cmd  # noqa: E402
 
 app.command(name="explain")(explain_cmd)
+app.command(name="equation-map")(equation_map_cmd)
 app.command(name="report")(report_cmd)
 app.add_typer(provenance_app, name="provenance")
 app.command(name="profile")(profile_cmd)
