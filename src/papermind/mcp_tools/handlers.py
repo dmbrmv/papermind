@@ -363,6 +363,38 @@ def handle_session_add(kb_path: Path, args: dict) -> list[TextContent]:
         return [TextContent(type="text", text=f"Error: {exc}")]
 
 
+def handle_find_references(kb_path: Path, args: dict) -> list[TextContent]:
+    """Find papers supporting a claim."""
+    from papermind.references import find_references, format_claim_result
+
+    result = find_references(
+        args["claim"],
+        kb_path,
+        max_results=args.get("limit", 5),
+        search_external=args.get("search_external", True),
+    )
+    return [TextContent(type="text", text=format_claim_result(result))]
+
+
+def handle_bib_gap(kb_path: Path, args: dict) -> list[TextContent]:
+    """Analyze a paper draft for bibliography gaps."""
+    from papermind.references import (
+        analyze_bibliography_gaps,
+        format_gap_analysis,
+    )
+
+    file_path = Path(args["file_path"])
+    if not file_path.exists():
+        return [TextContent(type="text", text=f"File not found: {file_path}")]
+
+    results = analyze_bibliography_gaps(
+        file_path,
+        kb_path,
+        search_external=args.get("search_external", True),
+    )
+    return [TextContent(type="text", text=format_gap_analysis(results))]
+
+
 def handle_session_read(kb_path: Path, args: dict) -> list[TextContent]:
     """Read a research session."""
     from papermind.session import format_session, read_session

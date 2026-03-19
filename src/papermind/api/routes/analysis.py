@@ -1,4 +1,4 @@
-"""Analysis endpoints — explain, provenance, equation-map, verify, etc."""
+"""Analysis endpoints — explain, provenance, equation-map, verify, refs."""
 
 from __future__ import annotations
 
@@ -6,6 +6,7 @@ import asyncio
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException, Request
+from pydantic import BaseModel
 
 from papermind.api.deps import get_kb_path, validate_file_path
 from papermind.api.schemas import (
@@ -211,5 +212,95 @@ async def resolve_refs(
                 "topic": r.topic,
             }
             for r in resolved
+        ],
+    }
+
+
+class CiteRequest(BaseModel):
+    """Request to find references for a claim."""
+
+    claim: str
+    limit: int = 5
+    search_external: bool = True
+
+
+class BibGapRequest(BaseModel):
+    """Request for bibliography gap analysis."""
+
+    file_path: str
+    search_external: bool = True
+
+
+@router.post("/analysis/cite")
+async def cite(
+    body: CiteRequest,
+    kb_path: Path = Depends(get_kb_path),
+) -> dict:
+    """Find papers that support a specific claim."""
+    from papermind.references import find_references
+
+    result = await asyncio.to_thread(
+        find_references,
+        body.claim,
+        kb_path,
+        max_results=body.limit,
+        search_external=body.search_external,
+    )
+
+    return {
+        "claim": result.claim,
+        "kb_count": result.kb_count,
+        "external_count": result.external_count,
+        "references": [
+            {
+                "title": r.title,
+                "doi": r.doi,
+                "year": r.year,
+                "topic": r.topic,
+                "abstract": r.abstract,
+                "relevance": r.relevance,
+                "source": r.source,
+            }
+            for r in result.references
+        ],
+    }
+
+
+@router.post("/analysis/bib-gap")
+async def bib_gap(
+    body: BibGapRequest,
+    request: Request,
+    kb_path: Path = Depends(get_kb_path),
+) -> dict:
+    """Analyze a paper draft for claims missing citations."""
+    from papermind.references import analyze_bibliography_gaps
+
+    file_path = validate_file_path(body.file_path, request)
+
+    results = await asyncio.to_thread(
+        analyze_bibliography_gaps,
+        file_path,
+        kb_path,
+        search_external=body.search_external,
+    )
+
+    return {
+        "claims_found": len(results),
+        "claims": [
+            {
+                "claim": cr.claim,
+                "kb_count": cr.kb_count,
+                "external_count": cr.external_count,
+                "references": [
+                    {
+                        "title": r.title,
+                        "doi": r.doi,
+                        "relevance": r.relevance,
+                        "source": r.source,
+                    }
+                    for r in cr.references
+                ],
+            }
+            for cr in results
         ],
     }

@@ -306,4 +306,44 @@ TOOLS: list[Tool] = [
             "required": ["codebase_path"],
         },
     ),
+    Tool(
+        name="find_references",
+        description=(
+            "Find papers supporting a claim. "
+            "Searches KB first, widens to OpenAlex if thin."
+        ),
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "claim": {
+                    "type": "string",
+                    "description": "Factual claim to find refs for",
+                },
+                "limit": {"type": "integer", "default": 5},
+                "search_external": {
+                    "type": "boolean",
+                    "default": True,
+                },
+            },
+            "required": ["claim"],
+        },
+    ),
+    Tool(
+        name="bib_gap_analysis",
+        description=("Analyze a paper draft for claims missing citations."),
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "file_path": {
+                    "type": "string",
+                    "description": "Path to paper draft (markdown)",
+                },
+                "search_external": {
+                    "type": "boolean",
+                    "default": True,
+                },
+            },
+            "required": ["file_path"],
+        },
+    ),
 ]

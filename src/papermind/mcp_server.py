@@ -50,6 +50,8 @@ def create_server(kb_path: Path) -> Server:
             "verify_implementation": lambda: h.handle_verify(kb_path, arguments),
             "session_create": lambda: h.handle_session_create(kb_path, arguments),
             "session_add": lambda: h.handle_session_add(kb_path, arguments),
+            "find_references": lambda: h.handle_find_references(kb_path, arguments),
+            "bib_gap_analysis": lambda: h.handle_bib_gap(kb_path, arguments),
             "session_read": lambda: h.handle_session_read(kb_path, arguments),
         }
 
