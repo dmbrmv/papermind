@@ -25,14 +25,29 @@ async def scan(
     results = await asyncio.to_thread(
         _search, kb_path, q, scope, topic, year_from, limit
     )
-    return {
-        "query": q,
-        "count": len(results),
-        "results": [
-            {"rank": i, "score": r.score, "title": r.title, "path": r.path}
-            for i, r in enumerate(results, 1)
-        ],
-    }
+
+    # Enrich search results with catalog metadata (paper titles, IDs)
+    from papermind.catalog.index import CatalogIndex
+
+    catalog = CatalogIndex(kb_path)
+    path_to_entry = {e.path: e for e in catalog.entries}
+
+    enriched = []
+    for i, r in enumerate(results, 1):
+        entry = path_to_entry.get(r.path)
+        enriched.append(
+            {
+                "rank": i,
+                "score": r.score,
+                "title": entry.title if entry else r.title,
+                "path": r.path,
+                "id": entry.id if entry else "",
+                "topic": entry.topic if entry else "",
+                "doi": entry.doi if entry else "",
+            }
+        )
+
+    return {"query": q, "count": len(enriched), "results": enriched}
 
 
 @router.get("/search/summary")
@@ -138,19 +153,21 @@ async def discover(
 
 
 def _search(
-    kb_path: Path, q: str, scope: str, topic: str, year_from: int | None, limit: int
+    kb_path: Path,
+    q: str,
+    scope: str,
+    topic: str,
+    year_from: int | None,
+    limit: int,
 ) -> list:
     """Run search (thread-safe, called via to_thread)."""
-    from papermind.query.fallback import fallback_search
-    from papermind.query.qmd import is_qmd_available, qmd_search
+    from papermind.query.dispatch import run_search
 
-    if is_qmd_available():
-        return qmd_search(kb_path, q, scope=scope or "", limit=limit)
-    return fallback_search(
+    return run_search(
         kb_path,
         q,
-        scope=scope or None,
-        topic=topic or None,
+        scope=scope,
+        topic=topic,
         year_from=year_from,
         limit=limit,
     )

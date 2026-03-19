@@ -104,36 +104,25 @@ def backfill_cross_refs(
 
 
 def _load_all_papers(kb_path: Path) -> dict[str, dict]:
-    """Load all papers with their tags."""
+    """Load all papers with their tags from the catalog (no filesystem scan)."""
+    from papermind.catalog.index import CatalogIndex
+
+    catalog = CatalogIndex(kb_path)
     papers: dict[str, dict] = {}
-    papers_dir = kb_path / "papers"
-    if not papers_dir.exists():
-        return papers
 
-    for paper_md in papers_dir.rglob("paper.md"):
-        try:
-            post = fm_lib.load(paper_md)
-            meta = post.metadata
-            if meta.get("type") != "paper":
-                continue
-            pid = meta.get("id", "")
-            if not pid:
-                continue
-
-            tags = set(meta.get("tags", []) or [])
-
-            # Also use topic as implicit tag
-            topic = meta.get("topic", "")
-            if topic:
-                tags.add(topic)
-
-            papers[pid] = {
-                "tags": tags,
-                "title": meta.get("title", ""),
-                "path": str(paper_md.relative_to(kb_path)),
-            }
-        except Exception:
+    for e in catalog.entries:
+        if e.type != "paper" or not e.id:
             continue
+
+        tags = set(e.tags or [])
+        if e.topic:
+            tags.add(e.topic)
+
+        papers[e.id] = {
+            "tags": tags,
+            "title": e.title,
+            "path": e.path,
+        }
 
     return papers
 
@@ -148,16 +137,12 @@ def _jaccard(set_a: set, set_b: set) -> float:
 
 
 def _find_paper_path(kb_path: Path, paper_id: str) -> Path | None:
-    """Find the filesystem path for a paper by ID."""
-    papers_dir = kb_path / "papers"
-    if not papers_dir.exists():
-        return None
+    """Find the filesystem path for a paper by ID (catalog lookup)."""
+    from papermind.catalog.index import CatalogIndex
 
-    for paper_md in papers_dir.rglob("paper.md"):
-        try:
-            post = fm_lib.load(paper_md)
-            if post.metadata.get("id") == paper_id:
-                return paper_md
-        except Exception:
-            continue
-    return None
+    catalog = CatalogIndex(kb_path)
+    entry = catalog.get(paper_id)
+    if entry is None:
+        return None
+    full = kb_path / entry.path
+    return full if full.exists() else None

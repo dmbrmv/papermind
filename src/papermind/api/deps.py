@@ -1,4 +1,4 @@
-"""FastAPI dependencies — KB path, write lock, path validation."""
+"""FastAPI dependencies — KB path, path validation."""
 
 from __future__ import annotations
 
@@ -8,8 +8,8 @@ from pathlib import Path
 
 from fastapi import HTTPException, Request
 
-# Global write lock — serializes all KB mutation operations.
-# Only protects within a single process (sufficient for single-worker uvicorn).
+# Write lock retained as a safety net for JSON-backend KBs.
+# SQLite handles concurrency natively; this is for legacy fallback.
 _write_lock = asyncio.Lock()
 
 

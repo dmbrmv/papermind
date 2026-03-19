@@ -28,8 +28,13 @@ def _make_kb_with_tagged_papers(tmp_path: Path) -> Path:
         ("paper-solo", "Solo Paper", []),  # no tags — should be excluded
     ]
 
+    from papermind.catalog.index import CatalogEntry, CatalogIndex
+
+    catalog = CatalogIndex(kb)
+
     for pid, title, tags in papers_data:
-        paper_dir = kb / "papers" / "hydrology" / pid.removeprefix("paper-")
+        slug = pid.removeprefix("paper-")
+        paper_dir = kb / "papers" / "hydrology" / slug
         paper_dir.mkdir(parents=True)
 
         post = fm_lib.Post(f"# {title}\n\nContent.\n")
@@ -41,6 +46,17 @@ def _make_kb_with_tagged_papers(tmp_path: Path) -> Path:
             "tags": tags,
         }
         (paper_dir / "paper.md").write_text(fm_lib.dumps(post))
+
+        catalog.add(
+            CatalogEntry(
+                id=pid,
+                type="paper",
+                path=f"papers/hydrology/{slug}/paper.md",
+                title=title,
+                topic="hydrology",
+                tags=tags,
+            )
+        )
 
     return kb
 

@@ -118,6 +118,13 @@ def _load_session(kb_path: Path, session_id: str) -> Session | None:
 # ---------------------------------------------------------------------------
 
 
+def _use_db(kb_path: Path) -> bool:
+    """Check if SQLite backend is available for sessions."""
+    from papermind.db import has_db
+
+    return has_db(kb_path)
+
+
 def create_session(
     kb_path: Path,
     name: str,
@@ -140,15 +147,24 @@ def create_session(
     from papermind.ingestion.common import slugify
 
     sid = session_id or slugify(name)
-    if _load_session(kb_path, sid) is not None:
-        raise ValueError(f"Session '{sid}' already exists")
+    created = datetime.now(UTC).isoformat()
 
-    session = Session(
-        id=sid,
-        name=name,
-        created=datetime.now(UTC).isoformat(),
-    )
-    _save_session(kb_path, session)
+    if _use_db(kb_path):
+        from papermind.db import db_create_session, db_get_session, get_connection
+
+        with get_connection(kb_path) as conn:
+            if db_get_session(conn, sid) is not None:
+                raise ValueError(f"Session '{sid}' already exists")
+            db_create_session(conn, sid, name, created)
+    else:
+        if _load_session(kb_path, sid) is not None:
+            raise ValueError(f"Session '{sid}' already exists")
+
+    session = Session(id=sid, name=name, created=created)
+
+    if not _use_db(kb_path):
+        _save_session(kb_path, session)
+
     logger.info("Created session: %s (%s)", name, sid)
     return session
 
@@ -161,34 +177,39 @@ def add_to_session(
     agent: str = "user",
     tags: list[str] | None = None,
 ) -> SessionEntry:
-    """Add an entry to an existing session.
+    """Add an entry to an existing session."""
+    entry = SessionEntry(agent=agent, content=content, tags=tags or [])
 
-    Args:
-        kb_path: Knowledge base root.
-        session_id: Session ID.
-        content: The finding / note / result.
-        agent: Name of the contributing agent.
-        tags: Optional tags.
+    if _use_db(kb_path):
+        from papermind.db import (
+            db_add_session_entry,
+            db_is_session_closed,
+            get_connection,
+        )
 
-    Returns:
-        The created SessionEntry.
+        with get_connection(kb_path) as conn:
+            closed = db_is_session_closed(conn, session_id)
+            if closed is None:
+                raise ValueError(f"Session '{session_id}' not found")
+            if closed:
+                raise ValueError(f"Session '{session_id}' is closed")
+            db_add_session_entry(
+                conn,
+                session_id,
+                entry.agent,
+                entry.content,
+                entry.tags,
+                entry.timestamp,
+            )
+    else:
+        session = _load_session(kb_path, session_id)
+        if session is None:
+            raise ValueError(f"Session '{session_id}' not found")
+        if session.closed:
+            raise ValueError(f"Session '{session_id}' is closed")
+        session.entries.append(entry)
+        _save_session(kb_path, session)
 
-    Raises:
-        ValueError: If session not found or is closed.
-    """
-    session = _load_session(kb_path, session_id)
-    if session is None:
-        raise ValueError(f"Session '{session_id}' not found")
-    if session.closed:
-        raise ValueError(f"Session '{session_id}' is closed")
-
-    entry = SessionEntry(
-        agent=agent,
-        content=content,
-        tags=tags or [],
-    )
-    session.entries.append(entry)
-    _save_session(kb_path, session)
     return entry
 
 
@@ -198,41 +219,56 @@ def read_session(
     *,
     tag: str = "",
 ) -> Session | None:
-    """Read a session, optionally filtering entries by tag.
+    """Read a session, optionally filtering entries by tag."""
+    if _use_db(kb_path):
+        from papermind.db import db_get_session, get_connection
 
-    Args:
-        kb_path: Knowledge base root.
-        session_id: Session ID.
-        tag: If provided, only return entries with this tag.
+        with get_connection(kb_path) as conn:
+            data = db_get_session(conn, session_id)
+        if data is None:
+            return None
+        entries = [SessionEntry(**e) for e in data["entries"]]
+        session = Session(
+            id=data["id"],
+            name=data["name"],
+            created=data["created"],
+            closed=data["closed"],
+            entries=entries,
+        )
+    else:
+        session = _load_session(kb_path, session_id)
 
-    Returns:
-        Session with (optionally filtered) entries, or None if not found.
-    """
-    session = _load_session(kb_path, session_id)
     if session is None or not tag:
         return session
 
-    # Filter entries by tag
-    filtered = Session(
+    return Session(
         id=session.id,
         name=session.name,
         created=session.created,
         closed=session.closed,
         entries=[e for e in session.entries if tag in e.tags],
     )
-    return filtered
 
 
 def close_session(kb_path: Path, session_id: str) -> Session | None:
-    """Close a session (no more entries can be added).
+    """Close a session (no more entries can be added)."""
+    if _use_db(kb_path):
+        from papermind.db import db_close_session, db_get_session, get_connection
 
-    Args:
-        kb_path: Knowledge base root.
-        session_id: Session ID.
+        with get_connection(kb_path) as conn:
+            if not db_close_session(conn, session_id):
+                return None
+            data = db_get_session(conn, session_id)
+        if data is None:
+            return None
+        return Session(
+            id=data["id"],
+            name=data["name"],
+            created=data["created"],
+            closed=True,
+            entries=[SessionEntry(**e) for e in data["entries"]],
+        )
 
-    Returns:
-        The closed Session, or None if not found.
-    """
     session = _load_session(kb_path, session_id)
     if session is None:
         return None
@@ -242,14 +278,23 @@ def close_session(kb_path: Path, session_id: str) -> Session | None:
 
 
 def list_sessions(kb_path: Path) -> list[Session]:
-    """List all sessions in the KB.
+    """List all sessions in the KB."""
+    if _use_db(kb_path):
+        from papermind.db import db_list_sessions, get_connection
 
-    Args:
-        kb_path: Knowledge base root.
+        with get_connection(kb_path) as conn:
+            rows = db_list_sessions(conn)
+        return [
+            Session(
+                id=r["id"],
+                name=r["name"],
+                created=r["created"],
+                closed=r["closed"],
+                entries=[],  # list view: metadata only
+            )
+            for r in rows
+        ]
 
-    Returns:
-        List of Session objects (entries not loaded — only metadata).
-    """
     sessions_dir = _sessions_dir(kb_path)
     sessions: list[Session] = []
     for path in sorted(sessions_dir.glob("*.json")):

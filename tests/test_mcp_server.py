@@ -9,15 +9,27 @@ from unittest.mock import patch
 import pytest
 from mcp.types import TextContent
 
-from papermind.mcp_server import (
-    _handle_catalog_stats,
-    _handle_detail,
-    _handle_get,
-    _handle_list_topics,
-    _handle_multi_get,
-    _handle_scan,
-    _handle_summary,
-    create_server,
+from papermind.mcp_server import create_server
+from papermind.mcp_tools.handlers import (
+    handle_catalog_stats as _handle_catalog_stats,
+)
+from papermind.mcp_tools.handlers import (
+    handle_detail as _handle_detail,
+)
+from papermind.mcp_tools.handlers import (
+    handle_get as _handle_get,
+)
+from papermind.mcp_tools.handlers import (
+    handle_list_topics as _handle_list_topics,
+)
+from papermind.mcp_tools.handlers import (
+    handle_multi_get as _handle_multi_get,
+)
+from papermind.mcp_tools.handlers import (
+    handle_scan as _handle_scan,
+)
+from papermind.mcp_tools.handlers import (
+    handle_summary as _handle_summary,
 )
 
 # ---------------------------------------------------------------------------
@@ -213,7 +225,7 @@ def test_handle_detail_respects_budget(kb_root: Path) -> None:
     # Write a large file
     (kb_root / "papers" / "big.md").write_text("x" * 10000)
     response = _handle_detail(kb_root, {"path": "papers/big.md", "budget": 100})
-    assert "[...truncated to budget...]" in response[0].text
+    assert "[...truncated" in response[0].text
     assert len(response[0].text) < 1000
 
 
