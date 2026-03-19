@@ -54,4 +54,20 @@ def create_app(kb_path: Path) -> FastAPI:
     async def health() -> dict:
         return {"status": "ok", "kb_path": str(kb_path)}
 
+    # Serve static UI files
+    static_dir = Path(__file__).parent.parent / "static"
+    if static_dir.is_dir():
+        from fastapi.responses import FileResponse
+        from fastapi.staticfiles import StaticFiles
+
+        @app.get("/")
+        async def ui_root() -> FileResponse:
+            return FileResponse(static_dir / "index.html")
+
+        app.mount(
+            "/static",
+            StaticFiles(directory=str(static_dir)),
+            name="static",
+        )
+
     return app
