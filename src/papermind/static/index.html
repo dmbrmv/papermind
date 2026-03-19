@@ -685,68 +685,79 @@ async function doExplain(){
 }
 
 // Text selection → search popup
-let selPopup=null;
+let selPopup=null,selTimer=null;
 document.addEventListener('mouseup',function(e){
+  if(selPopup&&selPopup.contains(e.target))return;
   if(selPopup){selPopup.remove();selPopup=null;}
-  // Don't show on buttons/inputs
   if(e.target.closest('button,input,textarea,.search-bar,.cite-link'))return;
-  // Delay to let selection finalize
-  setTimeout(()=>{
+  const evtX=e.clientX,evtY=e.clientY;
+  if(selTimer)clearTimeout(selTimer);
+  selTimer=setTimeout(()=>{
+    selTimer=null;
     const sel=window.getSelection();
     const text=(sel&&sel.toString()||'').trim();
+    console.log('POPUP-CHECK: len='+text.length+' rangeCount='+sel.rangeCount);
     if(text.length<3||text.length>200)return;
     if(!sel.rangeCount)return;
 
     const range=sel.getRangeAt(0);
     const rect=range.getBoundingClientRect();
-    if(rect.width===0)return;
+    const posX=rect.width>0?rect.left:evtX;
+    const posY=rect.height>0?(rect.bottom+6):(evtY+20);
 
   selPopup=document.createElement('div');
-  selPopup.style.cssText='position:fixed;z-index:1000;display:flex;gap:6px;padding:6px 10px;background:var(--card);border:1px solid var(--border);border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,.12);font-size:14px;font-family:var(--mono)';
-  selPopup.style.left=rect.left+'px';
-  selPopup.style.top=(rect.bottom+6)+'px';
+  selPopup.style.cssText='position:fixed;z-index:1000;display:flex;gap:6px;padding:8px 12px;background:var(--card);border:1px solid var(--border);border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,.12);font-size:14px;font-family:var(--mono)';
+  selPopup.style.left=posX+'px';
+  selPopup.style.top=posY+'px';
+
+  function popupAction(fn){
+    return function(e){
+      e.preventDefault();e.stopPropagation();
+      const p=selPopup;selPopup=null;
+      if(p)p.remove();
+      window.getSelection().removeAllRanges();
+      fn();
+    };
+  }
 
   const searchBtn=document.createElement('button');
   searchBtn.textContent='Search KB';
-  searchBtn.style.cssText='background:var(--accent);color:#fff;border:none;padding:6px 14px;border-radius:6px;cursor:pointer;font-family:var(--mono);font-size:13px';
-  searchBtn.addEventListener('click',()=>{
-    selPopup.remove();selPopup=null;
+  searchBtn.style.cssText='background:var(--accent);color:#fff;border:none;padding:8px 16px;border-radius:6px;cursor:pointer;font-family:var(--mono);font-size:14px';
+  searchBtn.addEventListener('mousedown',popupAction(()=>{
     previousView='browse';
     loadPapers(text);
     setActiveNav('browse');
-  });
+  }));
 
   const citeBtn=document.createElement('button');
   citeBtn.textContent='Find Refs';
-  citeBtn.style.cssText='background:var(--accent2);color:#fff;border:none;padding:6px 14px;border-radius:6px;cursor:pointer;font-family:var(--mono);font-size:13px';
-  citeBtn.addEventListener('click',()=>{
-    selPopup.remove();selPopup=null;
+  citeBtn.style.cssText='background:var(--accent2);color:#fff;border:none;padding:8px 16px;border-radius:6px;cursor:pointer;font-family:var(--mono);font-size:14px';
+  citeBtn.addEventListener('mousedown',popupAction(()=>{
     showCiteView();
     setActiveNav('cite');
     setTimeout(()=>{
       const cq=document.getElementById('cite-q');
       if(cq){cq.value=text;doCite();}
     },100);
-  });
+  }));
 
   const explainBtn=document.createElement('button');
   explainBtn.textContent='Explain';
-  explainBtn.style.cssText='background:var(--bg3);color:var(--fg);border:1px solid var(--border);padding:6px 14px;border-radius:6px;cursor:pointer;font-family:var(--mono);font-size:13px';
-  explainBtn.addEventListener('click',()=>{
-    selPopup.remove();selPopup=null;
+  explainBtn.style.cssText='background:var(--bg3);color:var(--fg);border:1px solid var(--border);padding:8px 16px;border-radius:6px;cursor:pointer;font-family:var(--mono);font-size:14px';
+  explainBtn.addEventListener('mousedown',popupAction(()=>{
     showExplainView();
     setActiveNav('explain');
     setTimeout(()=>{
       const eq=document.getElementById('explain-q');
       if(eq){eq.value=text;doExplain();}
     },100);
-  });
+  }));
 
   selPopup.appendChild(searchBtn);
   selPopup.appendChild(citeBtn);
   selPopup.appendChild(explainBtn);
   document.body.appendChild(selPopup);
-  },50);
+  },150);
 });
 
 document.addEventListener('mousedown',function(e){
