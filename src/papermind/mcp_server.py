@@ -210,6 +210,41 @@ def create_server(kb_path: Path) -> Server:
                     "required": ["concept"],
                 },
             ),
+            Tool(
+                name="provenance",
+                description=(
+                    "Extract # REF: code-to-paper annotations from a source file. "
+                    "Returns paper references with line numbers and locations."
+                ),
+                inputSchema={
+                    "type": "object",
+                    "properties": {
+                        "file_path": {
+                            "type": "string",
+                            "description": "Absolute path to source file",
+                        },
+                    },
+                    "required": ["file_path"],
+                },
+            ),
+            Tool(
+                name="project_profile",
+                description=(
+                    "Generate a project profile from codebase analysis. "
+                    "Returns languages, function/class counts, linked papers, "
+                    "and inferred topics."
+                ),
+                inputSchema={
+                    "type": "object",
+                    "properties": {
+                        "codebase_path": {
+                            "type": "string",
+                            "description": "Absolute path to codebase root",
+                        },
+                    },
+                    "required": ["codebase_path"],
+                },
+            ),
         ]
 
     @server.call_tool()
@@ -235,6 +270,10 @@ def create_server(kb_path: Path) -> Server:
             return _handle_watch(kb_path, arguments)
         elif name == "explain_concept":
             return _handle_explain(kb_path, arguments)
+        elif name == "provenance":
+            return _handle_provenance(arguments)
+        elif name == "project_profile":
+            return _handle_project_profile(kb_path, arguments)
         raise ValueError(f"Unknown tool: {name}")
 
     return server
@@ -456,6 +495,30 @@ def _handle_watch(kb_path: Path, args: dict) -> list[TextContent]:
             text=format_watch_output(file_path.name, results),
         )
     ]
+
+
+def _handle_provenance(args: dict) -> list[TextContent]:
+    """Extract provenance annotations from a source file."""
+    from papermind.provenance import extract_provenance, format_provenance
+
+    file_path = Path(args["file_path"])
+    if not file_path.exists():
+        return [TextContent(type="text", text=f"File not found: {file_path}")]
+
+    refs = extract_provenance(file_path)
+    return [TextContent(type="text", text=format_provenance(refs))]
+
+
+def _handle_project_profile(kb_path: Path, args: dict) -> list[TextContent]:
+    """Generate a project profile."""
+    from papermind.profile import format_profile, generate_profile
+
+    codebase_path = Path(args["codebase_path"])
+    if not codebase_path.is_dir():
+        return [TextContent(type="text", text=f"Not a directory: {codebase_path}")]
+
+    profile = generate_profile(codebase_path, kb_path)
+    return [TextContent(type="text", text=format_profile(profile))]
 
 
 def _handle_explain(kb_path: Path, args: dict) -> list[TextContent]:

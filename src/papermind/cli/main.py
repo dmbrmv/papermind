@@ -87,12 +87,16 @@ from papermind.cli.brief import brief_cmd  # noqa: E402
 from papermind.cli.chat import chat_cmd  # noqa: E402
 from papermind.cli.explain import explain_cmd  # noqa: E402
 from papermind.cli.pitfall import pitfall_add_cmd, pitfall_list_cmd  # noqa: E402
+from papermind.cli.profile import profile_cmd  # noqa: E402
+from papermind.cli.provenance import provenance_app  # noqa: E402
 from papermind.cli.report import report_cmd  # noqa: E402
 from papermind.cli.tables import tables_app  # noqa: E402
 from papermind.cli.watch import watch_cmd  # noqa: E402
 
 app.command(name="explain")(explain_cmd)
 app.command(name="report")(report_cmd)
+app.add_typer(provenance_app, name="provenance")
+app.command(name="profile")(profile_cmd)
 app.command(name="brief")(brief_cmd)
 app.command(name="chat")(chat_cmd)
 app.command(name="pitfall-add")(pitfall_add_cmd)
