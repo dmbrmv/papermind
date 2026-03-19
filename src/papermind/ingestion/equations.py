@@ -43,9 +43,16 @@ _MATH_INDICATORS = frozenset(
 )
 
 
+_CITATION_REF = re.compile(r"^\^?\{?[\d,\s-]+\}?$")
+
+
 def _is_math_content(s: str) -> bool:
-    """Distinguish real math from accidental $ usage."""
-    if len(s.strip()) < 2:
+    """Distinguish real math from accidental $ usage or citations."""
+    s = s.strip()
+    if len(s) < 2:
+        return False
+    # Filter out citation references like ^{1,2} or {10-12}
+    if _CITATION_REF.match(s):
         return False
     return any(ind in s for ind in _MATH_INDICATORS) or bool(re.search(r"[a-z]_\{", s))
 

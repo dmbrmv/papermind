@@ -2,11 +2,20 @@
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException
 
 from papermind.api.deps import get_kb_path
+
+_CITATION_RE = re.compile(r"^\^?\{?[\d,\s-]+\}?$")
+
+
+def _is_citation_ref(latex: str) -> bool:
+    """Check if a 'equation' is actually a citation reference."""
+    return bool(_CITATION_RE.match(latex.strip()))
+
 
 router = APIRouter()
 
@@ -75,7 +84,11 @@ async def get_paper(
         "added": entry.added,
         "year": meta.get("year"),
         "abstract": meta.get("abstract", ""),
-        "equations": meta.get("equations", []),
+        "equations": [
+            eq
+            for eq in meta.get("equations", [])
+            if not _is_citation_ref(eq.get("latex", ""))
+        ],
         "cites": meta.get("cites", []),
         "cited_by": meta.get("cited_by", []),
         "content": content[:5000],
