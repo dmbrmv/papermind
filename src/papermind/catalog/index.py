@@ -1,4 +1,9 @@
-"""Catalog index — CRUD operations on catalog.json with atomic writes."""
+"""Catalog index — CRUD operations with SQLite or JSON backend.
+
+Uses SQLite (papermind.db) when available for concurrent safety.
+Falls back to catalog.json for legacy KBs. Frontmatter in .md files
+remains the authoritative source — both backends are derived caches.
+"""
 
 from __future__ import annotations
 
@@ -30,35 +35,70 @@ class CatalogEntry:
 
 
 class CatalogIndex:
-    """CRUD interface for catalog.json.
+    """CRUD interface for the catalog.
 
-    catalog.json is a derived cache — frontmatter in .md files is authoritative.
-    This class manages the cache with atomic writes to prevent corruption.
+    Uses SQLite when papermind.db exists, falls back to catalog.json.
     """
 
     def __init__(self, base_path: Path) -> None:
         self.base_path = base_path
         self._path = base_path / "catalog.json"
+        self._use_db = self._check_db()
         self.entries: list[CatalogEntry] = self._load()
 
+    def _check_db(self) -> bool:
+        """Check if SQLite backend is available."""
+        from papermind.db import has_db
+
+        return has_db(self.base_path)
+
     def _load(self) -> list[CatalogEntry]:
+        """Load entries from SQLite or catalog.json."""
+        if self._use_db:
+            return self._load_from_db()
+        return self._load_from_json()
+
+    def _load_from_db(self) -> list[CatalogEntry]:
+        """Load entries from SQLite."""
+        from papermind.db import db_get_all_entries, get_connection
+
+        known = {f.name for f in fields(CatalogEntry)}
+        with get_connection(self.base_path) as conn:
+            rows = db_get_all_entries(conn)
+        return [
+            CatalogEntry(**{k: v for k, v in r.items() if k in known}) for r in rows
+        ]
+
+    def _load_from_json(self) -> list[CatalogEntry]:
         """Load entries from catalog.json."""
         if not self._path.exists():
             return []
         data = json.loads(self._path.read_text())
-        # Filter to known fields for forward compatibility
-        known_fields = {f.name for f in fields(CatalogEntry)}
+        known = {f.name for f in fields(CatalogEntry)}
         return [
-            CatalogEntry(**{k: v for k, v in entry.items() if k in known_fields})
-            for entry in data
+            CatalogEntry(**{k: v for k, v in e.items() if k in known}) for e in data
         ]
 
     def _save(self) -> None:
-        """Atomically write catalog.json (write to temp, rename)."""
+        """Persist to SQLite and/or catalog.json."""
+        if self._use_db:
+            self._save_to_db()
+        # Always write catalog.json too (backward compat + human readable)
+        self._save_to_json()
+
+    def _save_to_db(self) -> None:
+        """Sync current entries to SQLite (full replace)."""
+        from papermind.db import db_add_entry, get_connection
+
+        with get_connection(self.base_path) as conn:
+            conn.execute("DELETE FROM entries")
+            for e in self.entries:
+                db_add_entry(conn, asdict(e))
+
+    def _save_to_json(self) -> None:
+        """Atomically write catalog.json."""
         data = [e.to_dict() for e in self.entries]
         content = json.dumps(data, indent=2, ensure_ascii=False) + "\n"
-
-        # Atomic write: temp file in same dir, then rename
         fd, tmp_path = tempfile.mkstemp(
             dir=self.base_path, prefix=".catalog-", suffix=".json"
         )
@@ -71,34 +111,74 @@ class CatalogIndex:
             raise
 
     def add(self, entry: CatalogEntry) -> None:
-        """Add an entry and persist to disk."""
+        """Add an entry and persist."""
         self.entries.append(entry)
-        self._save()
+        if self._use_db:
+            from papermind.db import db_add_entry, get_connection
+
+            with get_connection(self.base_path) as conn:
+                db_add_entry(conn, asdict(entry))
+            self._save_to_json()
+        else:
+            self._save_to_json()
 
     def remove(self, entry_id: str) -> bool:
-        """Remove an entry by ID. Returns True if found and removed."""
+        """Remove an entry by ID."""
         before = len(self.entries)
         self.entries = [e for e in self.entries if e.id != entry_id]
         if len(self.entries) < before:
-            self._save()
+            if self._use_db:
+                from papermind.db import db_remove_entry, get_connection
+
+                with get_connection(self.base_path) as conn:
+                    db_remove_entry(conn, entry_id)
+            self._save_to_json()
             return True
         return False
 
     def get(self, entry_id: str) -> CatalogEntry | None:
         """Get an entry by ID."""
+        if self._use_db:
+            from papermind.db import db_get_entry, get_connection
+
+            known = {f.name for f in fields(CatalogEntry)}
+            with get_connection(self.base_path) as conn:
+                row = db_get_entry(conn, entry_id)
+            if row is None:
+                return None
+            return CatalogEntry(**{k: v for k, v in row.items() if k in known})
         for e in self.entries:
             if e.id == entry_id:
                 return e
         return None
 
     def has_doi(self, doi: str) -> bool:
-        """Check if a DOI already exists in the catalog."""
+        """Check if a DOI already exists."""
+        if self._use_db:
+            from papermind.db import db_has_doi, get_connection
+
+            with get_connection(self.base_path) as conn:
+                return db_has_doi(conn, doi)
         return any(e.doi == doi for e in self.entries)
 
     def stats(self) -> dict:
         """Compute summary statistics."""
-        type_keys = {"paper": "papers", "package": "packages", "codebase": "codebases"}
-        result: dict = {"papers": 0, "packages": 0, "codebases": 0, "topics": {}}
+        if self._use_db:
+            from papermind.db import db_stats, get_connection
+
+            with get_connection(self.base_path) as conn:
+                return db_stats(conn)
+        type_keys = {
+            "paper": "papers",
+            "package": "packages",
+            "codebase": "codebases",
+        }
+        result: dict = {
+            "papers": 0,
+            "packages": 0,
+            "codebases": 0,
+            "topics": {},
+        }
         for e in self.entries:
             key = type_keys.get(e.type)
             if key:
@@ -156,6 +236,7 @@ class CatalogIndex:
         idx = cls.__new__(cls)
         idx.base_path = base_path
         idx._path = base_path / "catalog.json"
+        idx._use_db = idx._check_db()
         idx.entries = entries
         idx._save()
         return idx
