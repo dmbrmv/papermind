@@ -1,0 +1,224 @@
+# PaperMind concept glossary — curated definitions for quick lookup.
+# Each entry: concept name → definition, range, unit, related terms, key reference.
+# Searched by exact match first, then aliases. KB search is fallback.
+
+CN2:
+  name: Curve Number (CN2)
+  definition: >
+    SCS Curve Number for moisture condition II. Controls the partition of
+    rainfall into direct runoff and infiltration. Higher values indicate
+    less permeable surfaces; lower values indicate more infiltration.
+  range: [35, 98]
+  unit: dimensionless
+  related: [infiltration, runoff, rainfall_runoff, SCS, Green-Ampt]
+  ref: "USDA-SCS TR-55 (1986); Neitsch et al. (2011) SWAT Theoretical Documentation"
+
+ESCO:
+  name: Soil Evaporation Compensation Factor (ESCO)
+  definition: >
+    Controls the depth distribution used to meet the soil evaporative
+    demand. Lower values allow deeper soil layers to compensate for
+    evaporative demand; higher values restrict evaporation to upper layers.
+  range: [0.01, 1.0]
+  unit: dimensionless
+  related: [evapotranspiration, soil_moisture, PET]
+  ref: "Neitsch et al. (2011) SWAT Theoretical Documentation, Ch. 7"
+
+EPCO:
+  name: Plant Uptake Compensation Factor (EPCO)
+  definition: >
+    Controls the depth distribution used to meet the plant water uptake
+    demand. Lower values force the model to meet demand from upper layers;
+    higher values allow compensation from deeper layers.
+  range: [0.01, 1.0]
+  unit: dimensionless
+  related: [evapotranspiration, transpiration, root_depth]
+  ref: "Neitsch et al. (2011) SWAT Theoretical Documentation, Ch. 7"
+
+alpha_bf:
+  name: Baseflow Alpha Factor
+  definition: >
+    Recession constant for baseflow. Controls how quickly groundwater
+    storage drains into the stream. Higher values produce flashier baseflow
+    response; lower values produce more sustained baseflow.
+  range: [0.0, 1.0]
+  unit: 1/day
+  related: [groundwater, baseflow, recession, aquifer]
+  ref: "Arnold et al. (1993); Neitsch et al. (2011) Ch. 12"
+
+GW_DELAY:
+  name: Groundwater Delay (GW_DELAY)
+  definition: >
+    Time required for water leaving the soil profile to reach the shallow
+    aquifer. Represents the lag between percolation leaving the root zone
+    and recharge appearing as baseflow contribution.
+  range: [0, 500]
+  unit: days
+  related: [groundwater, recharge, percolation, aquifer]
+  ref: "Neitsch et al. (2011) SWAT Theoretical Documentation, Ch. 12"
+
+GWQMN:
+  name: Threshold Depth for Return Flow (GWQMN)
+  definition: >
+    Threshold water depth in the shallow aquifer required for return flow
+    (baseflow) to occur. No baseflow contribution until the shallow aquifer
+    storage exceeds this threshold.
+  range: [0, 5000]
+  unit: mm H2O
+  related: [groundwater, baseflow, shallow_aquifer]
+  ref: "Neitsch et al. (2011) Ch. 12"
+
+SURLAG:
+  name: Surface Runoff Lag Coefficient (SURLAG)
+  definition: >
+    Controls the fraction of total surface runoff released from a
+    sub-basin on a given day. Lower values increase storage and spread
+    the hydrograph; higher values release runoff more quickly.
+  range: [0.05, 24.0]
+  unit: dimensionless
+  related: [runoff, hydrograph, lag, surface_flow]
+  ref: "Neitsch et al. (2011) SWAT Theoretical Documentation, Ch. 9"
+
+RCHRG_DP:
+  name: Deep Aquifer Percolation Fraction (RCHRG_DP)
+  definition: >
+    Fraction of percolation from the root zone that bypasses the shallow
+    aquifer and recharges the deep aquifer. This water is effectively
+    removed from the local water balance.
+  range: [0.0, 1.0]
+  unit: fraction
+  related: [deep_aquifer, percolation, groundwater, recharge]
+  ref: "Neitsch et al. (2011) Ch. 12"
+
+GW_REVAP:
+  name: Groundwater Revap Coefficient
+  definition: >
+    Controls the rate at which water moves from the shallow aquifer back
+    to the root zone (capillary rise / revap). Only active when the water
+    table is shallow enough for capillary forces to reach the root zone.
+  range: [0.02, 0.20]
+  unit: dimensionless
+  related: [groundwater, evapotranspiration, capillary, shallow_aquifer]
+  ref: "Neitsch et al. (2011) Ch. 12"
+
+SOL_AWC:
+  name: Available Water Capacity (SOL_AWC)
+  definition: >
+    Plant available water capacity of the soil layer, defined as the
+    difference between field capacity and wilting point. Controls how
+    much water the soil can store for plant uptake.
+  range: [0.0, 0.5]
+  unit: mm H2O / mm soil
+  related: [soil_moisture, field_capacity, wilting_point, infiltration]
+  ref: "Neitsch et al. (2011) Ch. 6"
+
+SOL_K:
+  name: Saturated Hydraulic Conductivity (SOL_K)
+  definition: >
+    Rate of water movement through a fully saturated soil layer. Controls
+    lateral flow, percolation, and the speed of water redistribution
+    within the soil profile.
+  range: [0.0, 2000]
+  unit: mm/hr
+  related: [infiltration, percolation, lateral_flow, Green-Ampt]
+  ref: "Neitsch et al. (2011) Ch. 6"
+
+CH_N2:
+  name: Manning's N for Main Channel
+  definition: >
+    Manning's roughness coefficient for the main channel. Controls flow
+    velocity and routing speed. Higher values represent rougher channels
+    (vegetation, boulders); lower values represent smoother channels.
+  range: [0.01, 0.3]
+  unit: dimensionless
+  related: [channel_routing, Muskingum, Manning, streamflow]
+  ref: "Chow (1959); Neitsch et al. (2011) Ch. 14"
+
+CH_K2:
+  name: Effective Hydraulic Conductivity of Main Channel
+  definition: >
+    Controls transmission losses from the main channel to the alluvial
+    aquifer. Higher values indicate a more permeable channel bed,
+    resulting in more water loss during routing.
+  range: [0.01, 500]
+  unit: mm/hr
+  related: [channel_routing, transmission_losses, alluvial]
+  ref: "Neitsch et al. (2011) Ch. 14"
+
+CANMX:
+  name: Maximum Canopy Storage
+  definition: >
+    Maximum amount of water that can be trapped in the plant canopy
+    before reaching the soil surface. Intercepted water is evaporated
+    directly before contributing to throughfall.
+  range: [0.0, 100]
+  unit: mm H2O
+  related: [interception, canopy, evapotranspiration, LAI]
+  ref: "Neitsch et al. (2011) Ch. 7"
+
+SFTMP:
+  name: Snowfall Temperature (SFTMP)
+  definition: >
+    Mean air temperature at which precipitation is classified as snow
+    rather than rain. Critical for snow-dominated catchments.
+  range: [-5.0, 5.0]
+  unit: degrees C
+  related: [snow, snowmelt, temperature, precipitation]
+  ref: "Neitsch et al. (2011) Ch. 5"
+
+SMTMP:
+  name: Snow Melt Base Temperature (SMTMP)
+  definition: >
+    Base temperature above which snowmelt occurs. Used in the
+    temperature-index (degree-day) snowmelt equation.
+  range: [-5.0, 5.0]
+  unit: degrees C
+  related: [snowmelt, degree_day, snow, temperature]
+  ref: "Neitsch et al. (2011) Ch. 5"
+
+SMFMX:
+  name: Maximum Melt Rate for Snow on June 21
+  definition: >
+    Maximum snowmelt factor on the summer solstice. The actual melt
+    factor varies seasonally between SMFMX and SMFMN.
+  range: [0.0, 20.0]
+  unit: mm H2O / (degree-day)
+  related: [snowmelt, degree_day, snow, SMFMN]
+  ref: "Neitsch et al. (2011) Ch. 5"
+
+KGE:
+  name: Kling-Gupta Efficiency
+  definition: >
+    Multi-component performance metric decomposing model skill into
+    correlation (r), variability bias (alpha), and volume bias (beta).
+    KGE = 1 - sqrt((r-1)^2 + (alpha-1)^2 + (beta-1)^2). Perfect
+    score is 1.0. Preferred over NSE for hydrological model evaluation
+    because it avoids the NSE bias toward matching peak flows.
+  range: [-inf, 1.0]
+  unit: dimensionless
+  related: [calibration, NSE, correlation, performance]
+  ref: "Gupta et al. (2009) doi:10.1016/j.jhydrol.2009.08.003"
+
+NSE:
+  name: Nash-Sutcliffe Efficiency
+  definition: >
+    Measures how well the model simulation matches observed discharge
+    relative to using the observed mean as a predictor. NSE = 1 -
+    sum((obs-sim)^2) / sum((obs-mean(obs))^2). Values > 0.5 are
+    generally considered acceptable. Biased toward matching peak flows.
+  range: [-inf, 1.0]
+  unit: dimensionless
+  related: [calibration, KGE, performance, RMSE]
+  ref: "Nash & Sutcliffe (1970) doi:10.1016/0022-1694(70)90255-6"
+
+HRU:
+  name: Hydrologic Response Unit
+  definition: >
+    The fundamental spatial unit in SWAT/SWAT+. An HRU is a unique
+    combination of land use, soil type, and slope class within a
+    sub-basin. Water balance calculations are performed independently
+    for each HRU, then aggregated to the sub-basin outlet.
+  range: null
+  unit: null
+  related: [SWAT, sub-basin, land_use, soil, slope]
+  ref: "Arnold et al. (1998); Neitsch et al. (2011) Ch. 1"

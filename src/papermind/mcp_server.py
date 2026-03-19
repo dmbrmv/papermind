@@ -189,6 +189,27 @@ def create_server(kb_path: Path) -> Server:
                     "required": ["file_path"],
                 },
             ),
+            Tool(
+                name="explain_concept",
+                description=(
+                    "Explain a hydrological parameter or scientific concept. "
+                    "Returns definition, typical range, units, and key reference. "
+                    "Checks curated glossary first, then searches the KB."
+                ),
+                inputSchema={
+                    "type": "object",
+                    "properties": {
+                        "concept": {
+                            "type": "string",
+                            "description": (
+                                "Parameter name or concept "
+                                "(e.g. CN2, alpha_bf, KGE, baseflow)"
+                            ),
+                        },
+                    },
+                    "required": ["concept"],
+                },
+            ),
         ]
 
     @server.call_tool()
@@ -212,6 +233,8 @@ def create_server(kb_path: Path) -> Server:
             return await _handle_discover(kb_path, arguments)
         elif name == "watch_file":
             return _handle_watch(kb_path, arguments)
+        elif name == "explain_concept":
+            return _handle_explain(kb_path, arguments)
         raise ValueError(f"Unknown tool: {name}")
 
     return server
@@ -433,6 +456,24 @@ def _handle_watch(kb_path: Path, args: dict) -> list[TextContent]:
             text=format_watch_output(file_path.name, results),
         )
     ]
+
+
+def _handle_explain(kb_path: Path, args: dict) -> list[TextContent]:
+    """Look up a concept in the glossary or KB."""
+    from papermind.explain import explain, format_explain
+
+    concept = args["concept"]
+    result = explain(concept, kb_path=kb_path)
+
+    if result is None:
+        return [
+            TextContent(
+                type="text",
+                text=f"No explanation found for '{concept}'.",
+            )
+        ]
+
+    return [TextContent(type="text", text=format_explain(result))]
 
 
 def _search(kb_path: Path, args: dict) -> list:

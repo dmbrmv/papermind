@@ -74,6 +74,10 @@ from papermind.cli.tags import tags_app  # noqa: E402
 app.add_typer(audit_app, name="audit")
 app.add_typer(equations_app, name="equations")
 app.command(name="backfill")(backfill_cmd)
+
+from papermind.cli.crossref import crossref_cmd  # noqa: E402
+
+app.command(name="crossref")(crossref_cmd)
 app.command(name="context-pack")(context_pack_cmd)
 app.command(name="crawl")(crawl_cmd)
 app.command(name="migrate")(migrate_cmd)
@@ -81,10 +85,14 @@ app.add_typer(tags_app, name="tags")
 
 from papermind.cli.brief import brief_cmd  # noqa: E402
 from papermind.cli.chat import chat_cmd  # noqa: E402
+from papermind.cli.explain import explain_cmd  # noqa: E402
 from papermind.cli.pitfall import pitfall_add_cmd, pitfall_list_cmd  # noqa: E402
+from papermind.cli.report import report_cmd  # noqa: E402
 from papermind.cli.tables import tables_app  # noqa: E402
 from papermind.cli.watch import watch_cmd  # noqa: E402
 
+app.command(name="explain")(explain_cmd)
+app.command(name="report")(report_cmd)
 app.command(name="brief")(brief_cmd)
 app.command(name="chat")(chat_cmd)
 app.command(name="pitfall-add")(pitfall_add_cmd)
