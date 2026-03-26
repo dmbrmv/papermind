@@ -226,3 +226,24 @@ def test_reindex_requires_initialized_kb(tmp_path: Path) -> None:
     not_kb.mkdir()
     result = runner.invoke(app, ["--kb", str(not_kb), "reindex"])
     assert result.exit_code != 0
+
+
+def test_reindex_reports_integrity_warnings(tmp_path: Path) -> None:
+    """Reindex should surface integrity findings after rebuild."""
+    kb = _init_kb(tmp_path)
+
+    _write_md(
+        kb,
+        "papers/hydrology/invalid.md",
+        {
+            "id": "invalid-1",
+            "type": "paper",
+            "title": "Invalid DOI Paper",
+            "topic": "hydrology",
+            "doi": "not-a-doi",
+        },
+    )
+
+    result = runner.invoke(app, ["--kb", str(kb), "reindex"])
+    assert result.exit_code == 0, result.output
+    assert "Integrity warnings after reindex" in result.output

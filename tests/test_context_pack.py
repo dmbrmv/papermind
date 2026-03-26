@@ -125,3 +125,40 @@ def test_context_pack_to_file(tmp_path: Path) -> None:
     assert result.exit_code == 0
     assert out.exists()
     assert "PaperMind Briefing" in out.read_text()
+
+
+def test_context_pack_query_mode_returns_matches(tmp_path: Path) -> None:
+    """Query mode should build a briefing from retrieved papers."""
+    kb = _make_kb_with_papers(tmp_path)
+    result = runner.invoke(
+        app,
+        [
+            "--kb",
+            str(kb),
+            "context-pack",
+            "SWAT calibration",
+            "--mode",
+            "query",
+        ],
+    )
+    assert result.exit_code == 0
+    assert "mode: query" in result.output
+    assert "SWAT Calibration Guide" in result.output
+
+
+def test_context_pack_query_mode_no_match(tmp_path: Path) -> None:
+    """Query mode should report no matching entries distinctly."""
+    kb = _make_kb_with_papers(tmp_path)
+    result = runner.invoke(
+        app,
+        [
+            "--kb",
+            str(kb),
+            "context-pack",
+            "quantum entanglement",
+            "--mode",
+            "query",
+        ],
+    )
+    assert result.exit_code == 0
+    assert "No matching entries for query" in result.output

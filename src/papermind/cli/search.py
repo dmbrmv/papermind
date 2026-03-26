@@ -99,7 +99,7 @@ def _print_results_table(query: str, results: list) -> None:
     table.add_column("Snippet", no_wrap=False, ratio=5)
 
     for r in results:
-        table.add_row(r.title, r.path, f"{r.score:.1f}", r.snippet[:180])
+        table.add_row(r.title, r.path, f"{r.score:.1f}", r.snippet[:180] if r.snippet else "")
 
     console.print(table)
     console.print(f"[dim]{len(results)} result(s)[/dim]")

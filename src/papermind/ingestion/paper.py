@@ -4,13 +4,15 @@ from __future__ import annotations
 
 import logging
 import re
+from difflib import SequenceMatcher
 from pathlib import Path
 
 from papermind.catalog.index import CatalogEntry, CatalogIndex
 from papermind.catalog.render import render_catalog_md
 from papermind.config import PaperMindConfig
 from papermind.ingestion.common import build_frontmatter, generate_id
-from papermind.ingestion.validation import validate_markdown, validate_pdf
+from papermind.ingestion.validation import ValidationError, validate_markdown, validate_pdf
+from papermind.integrity import validate_paper_metadata
 
 logger = logging.getLogger(__name__)
 
@@ -21,7 +23,7 @@ def convert_pdf(
     path: Path,
     config: PaperMindConfig,
 ) -> str:
-    """Convert PDF to markdown using GLM-OCR.
+    """Convert PDF to markdown using the configured OCR backend.
 
     Args:
         path: Path to the PDF file.
@@ -31,16 +33,12 @@ def convert_pdf(
         Markdown string.
 
     Raises:
-        ImportError: If GLM-OCR deps are not installed.
+        ImportError: If local OCR deps are not installed.
         RuntimeError: If conversion fails.
     """
-    from papermind.ingestion.glm_ocr import convert_pdf_glm
+    from papermind.ingestion.ocr_backend import convert_pdf_with_backend
 
-    return convert_pdf_glm(
-        path,
-        model_name=config.ocr_model,
-        dpi=config.ocr_dpi,
-    )
+    return convert_pdf_with_backend(path, config)
 
 
 def extract_metadata(markdown: str) -> dict:
@@ -82,17 +80,37 @@ def extract_metadata(markdown: str) -> dict:
                 metadata["title"] = line[:200]
                 break
 
-    doi_match = re.search(r"(10\.\d{4,9}/[-._;()/:A-Za-z0-9]+)", markdown)
+    primary_window = _primary_metadata_window(markdown)
+
+    doi_match = re.search(r"(10\.\d{4,9}/[-._;()/:A-Za-z0-9]+)", primary_window)
     if doi_match:
         metadata["doi"] = doi_match.group(1).rstrip(".,;)")
 
-    year_match = re.search(r"\((\d{4})\)", markdown[:2000])
+    year_match = re.search(r"\((\d{4})\)", primary_window[:4000])
     if year_match:
         year = int(year_match.group(1))
         if 1900 <= year <= 2030:
             metadata["year"] = year
 
     return metadata
+
+
+def _primary_metadata_window(markdown: str) -> str:
+    """Return the early body region where paper metadata normally appears."""
+    window = markdown[:8000]
+    refs_match = re.search(
+        r"(?im)^(#{0,3}\s*)?(references|bibliography)\b",
+        window,
+    )
+    if refs_match:
+        window = window[: refs_match.start()]
+    return window
+
+
+def _title_similarity(left: str, right: str) -> float:
+    """Approximate similarity between two titles."""
+    normalize = lambda s: re.sub(r"\s+", " ", re.sub(r"[^a-z0-9\s]", " ", s.lower())).strip()
+    return SequenceMatcher(None, normalize(left), normalize(right)).ratio()
 
 
 def _read_markdown_source(path: Path) -> tuple[str, dict]:
@@ -120,6 +138,9 @@ def ingest_paper(
     abstract: str = "",
     cites: list[str] | None = None,
     cited_by: list[str] | None = None,
+    preferred_title: str = "",
+    preferred_doi: str = "",
+    preferred_year: int | None = None,
 ) -> CatalogEntry | None:
     """Full paper ingestion pipeline.
 
@@ -156,11 +177,39 @@ def ingest_paper(
     meta = extract_metadata(markdown)
 
     # Existing frontmatter takes precedence over regex extraction
-    title = existing_fm.get("title") or meta.get("title", source_path.stem)
-    doi = existing_fm.get("doi") or meta.get("doi", "")
-    year = existing_fm.get("year") or meta.get("year")
+    extracted_title = meta.get("title", "")
+    extracted_doi = meta.get("doi", "")
+    extracted_year = meta.get("year")
+
+    if preferred_title and extracted_title:
+        similarity = _title_similarity(preferred_title, extracted_title)
+        if similarity < 0.75:
+            raise ValidationError(
+                "Downloaded PDF title does not match discovered paper metadata: "
+                f"preferred={preferred_title!r}, extracted={extracted_title!r}"
+            )
+
+    title = existing_fm.get("title") or preferred_title or extracted_title or source_path.stem
+    doi = existing_fm.get("doi") or preferred_doi or extracted_doi
+    year = existing_fm.get("year") or preferred_year or extracted_year
     if not abstract:
         abstract = existing_fm.get("abstract", "")
+
+    if preferred_doi and extracted_doi and preferred_doi != extracted_doi:
+        logger.warning(
+            "OCR-extracted DOI differs from discovered DOI for %s: extracted=%s preferred=%s",
+            source_path.name,
+            extracted_doi,
+            preferred_doi,
+        )
+
+    if preferred_year and extracted_year and preferred_year != extracted_year:
+        logger.warning(
+            "OCR-extracted year differs from discovered year for %s: extracted=%s preferred=%s",
+            source_path.name,
+            extracted_year,
+            preferred_year,
+        )
 
     # Immutable policy: same DOI is a no-op.
     catalog = CatalogIndex(kb_path)
@@ -191,7 +240,7 @@ def ingest_paper(
     md_path = paper_dir / "paper.md"
 
     # Extract embedded images from PDF (figures, charts) — best effort
-    if not is_markdown:
+    if not is_markdown and config.extract_pdf_images:
         try:
             from papermind.ingestion.glm_ocr import extract_images
 
@@ -215,6 +264,14 @@ def ingest_paper(
         **({"cites": cites} if cites else {}),
         **({"cited_by": cited_by} if cited_by else {}),
     )
+
+    metadata_findings = validate_paper_metadata(fm, path=str(md_path.relative_to(kb_path)))
+    errors = [finding.message for finding in metadata_findings if finding.severity == "error"]
+    warnings = [finding.message for finding in metadata_findings if finding.severity == "warning"]
+    if errors:
+        raise ValidationError("; ".join(errors))
+    for warning in warnings:
+        logger.warning("Paper metadata warning for %s: %s", source_path.name, warning)
 
     post = frontmatter.Post(markdown)
     post.metadata = fm

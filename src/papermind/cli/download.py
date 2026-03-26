@@ -122,7 +122,7 @@ async def _download_all(results: list, output_dir: Path) -> list[Path]:
     """
     from papermind.discovery.downloader import download_paper
 
-    downloaded: list[Path] = []
+    downloaded: list[tuple[Path, object]] = []
     for r in results:
         label = (r.title or r.doi or r.pdf_url or "unknown")[:60]
         if not r.pdf_url:
@@ -132,7 +132,7 @@ async def _download_all(results: list, output_dir: Path) -> list[Path]:
         dest = await download_paper(r, output_dir)
         if dest is not None:
             console.print(f"  [green]OK[/green]   {label!r} → {dest.name}")
-            downloaded.append(dest)
+            downloaded.append((dest, r))
         else:
             console.print(
                 f"  [red]FAIL[/red] {label!r} — download error (404/timeout/not a PDF)"
@@ -233,7 +233,7 @@ def _run_fresh_search(
 
 def _auto_ingest(
     ctx: typer.Context,
-    paths: list[Path],
+    paths: list[tuple[Path, object]],
     topic: str,
     kb: Path,
 ) -> None:
@@ -252,15 +252,34 @@ def _auto_ingest(
 
     cfg = load_config(kb)
     console.print(f"[dim]Auto-ingesting {len(paths)} file(s)…[/dim]")
+    ingested = 0
 
-    for pdf_path in paths:
+    for pdf_path, paper_result in paths:
         try:
-            entry = ingest_paper(pdf_path, topic, kb, cfg, no_reindex=True)
+            entry = ingest_paper(
+                pdf_path,
+                topic,
+                kb,
+                cfg,
+                no_reindex=True,
+                preferred_title=paper_result.title,
+                preferred_doi=paper_result.doi,
+                preferred_year=paper_result.year,
+                abstract=paper_result.abstract,
+                cites=paper_result.cites or None,
+                cited_by=paper_result.cited_by or None,
+            )
             if entry is None:
                 console.print(
                     f"  [yellow]SKIP[/yellow] {pdf_path.name} — duplicate DOI"
                 )
             else:
                 console.print(f"  [green]INGESTED[/green] {pdf_path.name} → {entry.id}")
+                ingested += 1
         except Exception as exc:  # noqa: BLE001
             console.print(f"  [red]INGEST ERROR[/red] {pdf_path.name}: {exc}")
+
+    if ingested:
+        from papermind.query.qmd import qmd_reindex
+
+        qmd_reindex(kb)

@@ -67,3 +67,16 @@ def test_fallback_no_abstract_no_prefix(populated_kb: Path) -> None:
     assert len(results) >= 1
     for r in results:
         assert "[Abstract]" not in r.snippet
+
+
+def test_fallback_strips_diff_marker_noise(tmp_path: Path) -> None:
+    """Snippets should not include diff hunk markers."""
+    kb = tmp_path / "kb"
+    (kb / "papers" / "hydrology").mkdir(parents=True)
+    (kb / "papers" / "hydrology" / "diffy.md").write_text(
+        "---\ntype: paper\ntitle: Diffy Paper\n---\n\n"
+        "@@ -8,4 @@ calibration details\nSWAT calibration is discussed here.\n"
+    )
+    results = fallback_search(kb, "calibration")
+    assert len(results) == 1
+    assert "@@" not in results[0].snippet

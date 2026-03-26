@@ -46,6 +46,8 @@ def test_convert_pdf_dispatches_to_glm(tmp_path: Path) -> None:
 
     mock_glm.assert_called_once()
     assert result == "# GLM output"
+    _, kwargs = mock_glm.call_args
+    assert kwargs["max_new_tokens"] == 4096
 
 
 # ---------------------------------------------------------------------------
@@ -66,6 +68,7 @@ def test_convert_pdf_glm_produces_markdown(tmp_path: Path) -> None:
 
     with (
         patch("papermind.ingestion.glm_ocr.is_available", return_value=True),
+        patch("papermind.ingestion.glm_ocr._page_count", return_value=2),
         patch("papermind.ingestion.glm_ocr._render_pdf_pages") as mock_render,
         patch("papermind.ingestion.glm_ocr._ensure_model") as mock_model,
         patch("papermind.ingestion.glm_ocr._ocr_image") as mock_ocr,
@@ -79,12 +82,18 @@ def test_convert_pdf_glm_produces_markdown(tmp_path: Path) -> None:
 
         from papermind.ingestion.glm_ocr import convert_pdf_glm
 
-        result = convert_pdf_glm(pdf, model_name="test-model", dpi=72)
+        result = convert_pdf_glm(
+            pdf,
+            model_name="test-model",
+            dpi=72,
+            max_new_tokens=2048,
+        )
 
     assert "Page 1" in result
     assert "Page 2" in result
     assert "---" in result  # Page separator
     assert mock_ocr.call_count == 2
+    assert mock_ocr.call_args.kwargs["max_new_tokens"] == 2048
 
 
 def test_convert_pdf_glm_raises_when_deps_missing(tmp_path: Path) -> None:
@@ -152,3 +161,4 @@ def test_config_has_ocr_fields() -> None:
     cfg = PaperMindConfig(base_path=Path("/tmp"))
     assert cfg.ocr_model == "zai-org/GLM-OCR"
     assert cfg.ocr_dpi == 150
+    assert cfg.ocr_max_new_tokens == 4096

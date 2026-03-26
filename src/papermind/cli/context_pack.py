@@ -1,8 +1,9 @@
-"""papermind context-pack — generate compressed briefing for agent context."""
+"""papermind context-pack — generate compressed briefing for topic or query."""
 
 from __future__ import annotations
 
 from pathlib import Path
+from types import SimpleNamespace
 
 import typer
 from rich.console import Console
@@ -14,7 +15,12 @@ console = Console()
 
 def context_pack_cmd(
     ctx: typer.Context,
-    topic: str = typer.Argument(..., help="Topic to generate briefing for"),
+    target: str = typer.Argument(..., help="Topic or query to generate briefing for"),
+    mode: str = typer.Option(
+        "topic",
+        "--mode",
+        help="Use topic mode for tagged entries or query mode for retrieved matches",
+    ),
     max_tokens: int = typer.Option(
         2000,
         "--max-tokens",
@@ -28,29 +34,61 @@ def context_pack_cmd(
         help="Write to file instead of stdout",
     ),
 ) -> None:
-    """Generate a compressed topic briefing for agent context injection.
+    """Generate a compact KB briefing for agent context injection.
 
-    Produces a dense, structured block with the most relevant papers
-    for a topic — pre-deduplicated, cross-referenced, with abstracts
-    and citation counts. Designed for CLAUDE.md or session preambles.
+    Topic mode builds a pack from already-tagged entries in one topic.
+    Query mode retrieves the top matching papers and formats them using
+    the same briefing layout.
 
     Examples::
 
         papermind context-pack hydrology --max-tokens 1500
-        papermind context-pack ml-methods -n 3000 -o briefing.md
+        papermind context-pack "SWAT calibration" --mode query -n 3000
     """
     import frontmatter as fm_lib
 
     from papermind.catalog.index import CatalogIndex
+    from papermind.query.fallback import fallback_search
+    from papermind.query.dispatch import run_search
 
     kb = _resolve_kb(ctx)
     catalog = CatalogIndex(kb)
+    if mode not in {"topic", "query"}:
+        console.print("[red]Invalid mode[/red] — use topic or query")
+        raise typer.Exit(code=1)
 
-    # Filter entries by topic
-    entries = [e for e in catalog.entries if e.topic == topic]
-    if not entries:
-        console.print(f"[yellow]No entries in topic[/yellow] {topic!r}")
-        raise typer.Exit(code=0)
+    if mode == "topic":
+        entries = [e for e in catalog.entries if e.type == "paper" and e.topic == target]
+        if not entries:
+            console.print(f"[yellow]No entries in topic[/yellow] {target!r}")
+            raise typer.Exit(code=0)
+    else:
+        results = run_search(kb, target, scope="papers", limit=25)
+        seen_paths: set[str] = set()
+        entries = []
+        for result in results:
+            if result.path in seen_paths:
+                continue
+            seen_paths.add(result.path)
+            entry = next((e for e in catalog.entries if e.path == result.path), None)
+            if entry and entry.type == "paper":
+                entries.append(entry)
+            elif (kb / result.path).exists():
+                entries.append(SimpleNamespace(path=result.path, type="paper"))
+        if not entries:
+            results = fallback_search(kb, target, scope="papers", limit=25)
+            for result in results:
+                if result.path in seen_paths:
+                    continue
+                seen_paths.add(result.path)
+                entry = next((e for e in catalog.entries if e.path == result.path), None)
+                if entry and entry.type == "paper":
+                    entries.append(entry)
+                elif (kb / result.path).exists():
+                    entries.append(SimpleNamespace(path=result.path, type="paper"))
+        if not entries:
+            console.print(f"[yellow]No matching entries for query[/yellow] {target!r}")
+            raise typer.Exit(code=0)
 
     # Read frontmatter for each entry
     papers: list[dict] = []
@@ -79,7 +117,8 @@ def context_pack_cmd(
     # Build the briefing
     max_chars = max_tokens * 4  # rough token→char conversion
     lines = [
-        f"# PaperMind Briefing: {topic}",
+        f"# PaperMind Briefing: {target}",
+        f"> mode: {mode}",
         f"> {len(papers)} papers in KB",
         "",
     ]

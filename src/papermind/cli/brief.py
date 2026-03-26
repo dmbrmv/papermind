@@ -76,6 +76,7 @@ def brief_cmd(
 
     # Search KB
     results = fallback_search(kb, query, limit=limit)
+    results = _rerank_results(results)
 
     # Check pitfalls against changed files
     changed_files = _extract_changed_files(diff_text, repo_path)
@@ -162,3 +163,25 @@ def _extract_changed_files(diff_text: str, repo_path: Path) -> list[Path]:
             if full.suffix == ".py":
                 files.append(full)
     return files
+
+
+def _rerank_results(results: list) -> list:
+    """Prefer papers, then codebases, then package index pages."""
+
+    def bucket(result: object) -> tuple[int, float, str]:
+        path = str(result.path)
+        if path.startswith("papers/"):
+            rank = 0
+        elif path.startswith("codebases/"):
+            rank = 1
+        elif path.startswith("packages/") and (
+            path.endswith("/_index.md") or path.endswith("/index.md")
+        ):
+            rank = 3
+        elif path.startswith("packages/"):
+            rank = 2
+        else:
+            rank = 4
+        return (rank, -float(result.score), path)
+
+    return sorted(results, key=bucket)

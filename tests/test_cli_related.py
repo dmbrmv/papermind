@@ -13,6 +13,7 @@ from papermind.cli.related import (
     _build_doi_index,
     _find_paper_frontmatter,
     _find_reverse_links,
+    _resolve_paper_frontmatter,
 )
 
 runner = CliRunner()
@@ -143,6 +144,25 @@ class TestBuildDoiIndex:
         assert "Paper A" in title
 
 
+class TestResolvePaperFrontmatter:
+    """Tests for id/path/doi paper resolution."""
+
+    def test_resolves_by_relative_path(self, kb_with_citations: Path) -> None:
+        fm, matched_via = _resolve_paper_frontmatter(
+            kb_with_citations,
+            "papers/hydrology/paper-a.md",
+        )
+        assert fm is not None
+        assert matched_via == "path"
+        assert fm["id"] == "paper-a-2023"
+
+    def test_resolves_by_doi(self, kb_with_citations: Path) -> None:
+        fm, matched_via = _resolve_paper_frontmatter(kb_with_citations, "10.1/A")
+        assert fm is not None
+        assert matched_via == "doi"
+        assert fm["id"] == "paper-a-2023"
+
+
 class TestFindReverseLinks:
     """Tests for _find_reverse_links helper."""
 
@@ -187,3 +207,24 @@ class TestRelatedCLI:
         )
         assert result.exit_code == 0
         assert "No citation data" in result.output
+
+    def test_accepts_relative_path(self, kb_with_citations: Path) -> None:
+        result = runner.invoke(
+            app,
+            [
+                "--kb",
+                str(kb_with_citations),
+                "related",
+                "papers/hydrology/paper-a.md",
+            ],
+        )
+        assert result.exit_code == 0
+        assert "Resolved via path" in result.output
+
+    def test_accepts_doi(self, kb_with_citations: Path) -> None:
+        result = runner.invoke(
+            app,
+            ["--kb", str(kb_with_citations), "related", "10.1/A"],
+        )
+        assert result.exit_code == 0
+        assert "Resolved via doi" in result.output

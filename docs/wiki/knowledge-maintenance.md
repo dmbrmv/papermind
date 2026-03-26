@@ -2,6 +2,66 @@
 
 Commands for keeping the KB accurate, tagged, and complete.
 
+## Freshness policy
+
+PaperMind now distinguishes between two different states:
+
+- `integrity`: whether a record is structurally trustworthy
+- `freshness`: whether a record has been re-checked recently enough for current use
+
+These are not the same thing. A paper can be integrity-clean and still stale.
+
+### What counts as fresh
+
+- `paper` entries are fresh when `last_verified` is within the last `90` days
+- `package` entries are fresh when the installed or indexed version has been checked recently
+- `codebase` entries should be re-ingested when their upstream source changes materially
+
+### Verification events
+
+Set or update `last_verified` when one of these is true:
+
+- a paper was newly ingested and passed intake verification
+- a paper was restored by the recovery workflow and passed intake verification
+- a human re-checked the paper metadata, DOI, and main content manually
+- a batch verification pass confirmed the record still matches external metadata
+
+Do not mark a paper verified just because it appears in search results.
+
+### Recommended operating cadence
+
+| Frequency | Purpose | Command |
+|-----------|---------|---------|
+| After any ingestion or recovery batch | Confirm new entries are structurally valid | `papermind --kb ~/Documents/KnowledgeBase audit health --online --fail-on never` |
+| Weekly | Review newly received or restored papers | `papermind --kb ~/Documents/KnowledgeBase audit intake <paper-id>` |
+| Monthly | Find papers whose verification is aging out | `papermind --kb ~/Documents/KnowledgeBase audit stale` |
+| Quarterly | Re-verify important topic subsets | `papermind --kb ~/Documents/KnowledgeBase audit verify <paper-id> --note "<reason>"` |
+| After manual KB edits | Rebuild catalog and search index | `papermind --kb ~/Documents/KnowledgeBase reindex` |
+
+### Recommended freshness workflow
+
+1. Ingest or recover papers.
+2. Run `audit health --online` for the whole KB.
+3. Run `audit intake` for the specific new or restored paper IDs when the batch matters.
+4. Mark manually reviewed papers with `audit verify`.
+5. Run `audit stale` on a schedule and work down the queue by topic priority.
+
+### Priority for re-verification
+
+When the stale queue is large, re-verify in this order:
+
+1. Papers used in active product or modeling work
+2. Papers cited in prompts, reports, or generated summaries
+3. Recently restored papers
+4. Older background/reference papers
+
+### Current policy for automation
+
+- automatic verification is acceptable for structural checks and recovery intake
+- automatic verification is not the same as scientific endorsement
+- online checks should confirm DOI/title consistency, not replace paper reading
+- unresolved or low-confidence records should go to quarantine, not back into the KB
+
 ## `tags refresh` — recompute TF-IDF tags
 
 Analyzes the full paper corpus and assigns distinctive keywords to each paper. Tags are written to the `tags` field in frontmatter and appear in `context-pack` output.
@@ -154,7 +214,7 @@ Scans all `.md` frontmatter, rebuilds `catalog.json` and `catalog.md`, and trigg
 
 | Frequency | Command |
 |-----------|---------|
-| After bulk ingestion | `backfill`, `tags refresh`, `equations backfill` |
+| After bulk ingestion | `audit health --online`, `backfill`, `tags refresh`, `equations backfill` |
 | Monthly | `audit stale`, `audit check-versions` |
 | After adding new papers manually | `reindex` |
 | After upgrading from pre-v1.3.1 | `migrate` (once) |

@@ -1,5 +1,9 @@
 # PaperMind — Roadmap
 
+Current operating status:
+- See `docs/papermind_status_2026-03-26.md` for the dated trust/freshness memo.
+- See `docs/wiki/knowledge-maintenance.md` for the active freshness policy and maintenance workflow.
+
 ## Shipped
 
 ### v1.0.0 (2026-03-16)

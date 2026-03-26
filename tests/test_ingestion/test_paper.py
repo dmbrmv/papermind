@@ -1,4 +1,4 @@
-"""Tests for paper ingestion — GLM-OCR conversion + metadata + catalog."""
+"""Tests for paper ingestion — OCR conversion + metadata + catalog."""
 
 from __future__ import annotations
 
@@ -8,6 +8,7 @@ from unittest.mock import patch
 
 from papermind.catalog.index import CatalogIndex
 from papermind.config import PaperMindConfig
+from papermind.ingestion.validation import ValidationError
 from papermind.ingestion.paper import convert_pdf, extract_metadata, ingest_paper
 
 # ---------------------------------------------------------------------------
@@ -67,6 +68,7 @@ class TestConvertPdfDispatch:
         cfg = _make_config(tmp_path)
         cfg.ocr_model = "custom/model"
         cfg.ocr_dpi = 200
+        cfg.ocr_max_new_tokens = 5000
 
         with _mock_convert("# X\n") as mock_glm:
             convert_pdf(pdf, cfg)
@@ -74,6 +76,50 @@ class TestConvertPdfDispatch:
         _, kwargs = mock_glm.call_args
         assert kwargs["model_name"] == "custom/model"
         assert kwargs["dpi"] == 200
+        assert kwargs["max_new_tokens"] == 5000
+
+    def test_routes_to_zai_backend(self, tmp_path: Path) -> None:
+        pdf = _make_pdf(tmp_path / "paper.pdf")
+        cfg = _make_config(tmp_path)
+        cfg.ocr_backend = "zai"
+        cfg.zai_api_key = "secret"
+
+        with patch(
+            "papermind.ingestion.zai_ocr.convert_pdf_zai",
+            return_value="# Remote Output\n",
+        ) as mock_zai:
+            result = convert_pdf(pdf, cfg)
+
+        mock_zai.assert_called_once()
+        assert result == "# Remote Output\n"
+
+    def test_zai_backend_rejected_in_offline_mode(self, tmp_path: Path) -> None:
+        pdf = _make_pdf(tmp_path / "paper.pdf")
+        cfg = _make_config(tmp_path)
+        cfg.ocr_backend = "zai"
+        cfg.offline_only = True
+
+        try:
+            convert_pdf(pdf, cfg)
+        except RuntimeError as exc:
+            assert "offline mode" in str(exc)
+            return
+
+        raise AssertionError("RuntimeError was not raised")
+
+    def test_skip_image_extraction_when_disabled(self, tmp_path: Path) -> None:
+        kb = _make_kb(tmp_path)
+        pdf = _make_pdf(tmp_path / "paper.pdf")
+        cfg = _make_config(tmp_path)
+        cfg.extract_pdf_images = False
+
+        with (
+            _mock_convert("# My Paper (2020)\n\nDOI: 10.9999/test.2020.\n"),
+            patch("papermind.ingestion.glm_ocr.extract_images") as mock_extract,
+        ):
+            ingest_paper(pdf, "hydrology", kb, cfg, no_reindex=True)
+
+        mock_extract.assert_not_called()
 
 
 # ---------------------------------------------------------------------------
@@ -126,11 +172,11 @@ class TestExtractMetadata:
         meta = extract_metadata(md)
         assert "year" not in meta
 
-    def test_year_only_within_first_2000_chars(self) -> None:
+    def test_year_only_within_primary_window(self) -> None:
         prefix = "# Title\n" + "x" * 2100
         md = prefix + " (2021) late mention."
         meta = extract_metadata(md)
-        assert "year" not in meta
+        assert meta["year"] == 2021
 
     def test_all_fields_together(self) -> None:
         md = (
@@ -214,6 +260,77 @@ class TestIngestPaperFrontmatter:
         post = fm_lib.load(written)
         doi_val = post.metadata.get("doi", "")
         assert doi_val == ""
+
+    def test_invalid_markdown_frontmatter_raises_validation_error(self, tmp_path: Path) -> None:
+        """Invalid final metadata in supplied markdown frontmatter should fail."""
+        kb = _make_kb(tmp_path)
+        cfg = _make_config(tmp_path)
+        md = tmp_path / "broken.md"
+        md.write_text(
+            "---\ntype: paper\nid: broken-paper\ndoi: not-a-doi\n---\n\nBody.\n"
+        )
+
+        try:
+            ingest_paper(md, "hydrology", kb, cfg, no_reindex=True)
+        except ValidationError as exc:
+            assert "DOI does not match expected format" in str(exc)
+            return
+
+        raise AssertionError("ValidationError was not raised")
+
+    def test_preferred_metadata_overrides_bad_ocr_doi(self, tmp_path: Path) -> None:
+        """Discovery metadata should win over OCR DOI extraction for fetched PDFs."""
+        import frontmatter as fm_lib
+
+        kb = _make_kb(tmp_path)
+        pdf = _make_pdf(tmp_path / "paper.pdf")
+        cfg = _make_config(tmp_path)
+
+        with _mock_convert(
+            "# Correct Paper Title\n\n"
+            "Body text.\n\n"
+            "References\n\n"
+            "Some cited work DOI: 10.9999/wrong-doi.\n"
+        ):
+            ingest_paper(
+                pdf,
+                "hydrology",
+                kb,
+                cfg,
+                no_reindex=True,
+                preferred_title="Correct Paper Title",
+                preferred_doi="10.1234/correct-doi",
+                preferred_year=2022,
+            )
+
+        written = list((kb / "papers" / "hydrology").rglob("paper.md"))[0]
+        post = fm_lib.load(written)
+        assert post.metadata["title"] == "Correct Paper Title"
+        assert post.metadata["doi"] == "10.1234/correct-doi"
+        assert post.metadata["year"] == 2022
+
+    def test_preferred_title_mismatch_rejects_wrong_pdf(self, tmp_path: Path) -> None:
+        """Fetched PDFs that don't match discovered metadata should be rejected."""
+        kb = _make_kb(tmp_path)
+        pdf = _make_pdf(tmp_path / "paper.pdf")
+        cfg = _make_config(tmp_path)
+
+        with _mock_convert("# Completely Different Paper\n\nBody text.\n"):
+            try:
+                ingest_paper(
+                    pdf,
+                    "hydrology",
+                    kb,
+                    cfg,
+                    no_reindex=True,
+                    preferred_title="Expected Discovered Paper",
+                    preferred_doi="10.1234/expected",
+                )
+            except ValidationError as exc:
+                assert "does not match discovered paper metadata" in str(exc)
+                return
+
+        raise AssertionError("ValidationError was not raised")
 
 
 # ---------------------------------------------------------------------------

@@ -82,7 +82,22 @@ def _build_snippet(text: str, pattern: re.Pattern[str], context: int = 200) -> s
         snippet = "…" + snippet
     if end < len(text):
         snippet = snippet + "…"
-    return snippet
+    return _clean_snippet(snippet)
+
+
+def _strip_frontmatter(text: str) -> tuple[str, str]:
+    """Split markdown into frontmatter and body."""
+    fm_match = re.match(r"^---\s*\n(.*?)\n---\s*\n?", text, re.DOTALL)
+    if not fm_match:
+        return "", text
+    return fm_match.group(1), text[fm_match.end() :]
+
+
+def _clean_snippet(text: str) -> str:
+    """Clean snippet noise for CLI display."""
+    text = re.sub(r"@@[^@]*@@", " ", text)
+    text = re.sub(r"\s+", " ", text)
+    return text.strip()
 
 
 def _load_aliases() -> dict[str, list[str]]:
@@ -172,6 +187,7 @@ def fallback_search(
             continue
 
         text = md_file.read_text(encoding="utf-8", errors="replace")
+        _, body = _strip_frontmatter(text)
 
         # Year filter: skip papers older than year_from
         if year_from:
@@ -183,18 +199,29 @@ def fallback_search(
                 except ValueError:
                     pass
 
-        matches = term_pattern.findall(text)
+        searchable = body
+        title = _extract_frontmatter_title(text, md_file)
+        abstract = _extract_frontmatter_field(text, "abstract")
+        weighted_text = f"{title}\n{abstract}\n{searchable}".strip()
+
+        matches = term_pattern.findall(weighted_text)
         if not matches:
             continue
 
         size_kb = max(len(text) / 1024.0, 0.1)  # avoid div-by-zero on tiny files
         score = len(matches) / size_kb
 
-        title = _extract_frontmatter_title(text, md_file)
-        snippet = _build_snippet(text, term_pattern)
-        abstract = _extract_frontmatter_field(text, "abstract")
+        snippet_parts: list[str] = []
         if abstract:
-            snippet = f"[Abstract] {abstract[:200]} | {snippet}"
+            abstract_snippet = _build_snippet(abstract, term_pattern, context=180)
+            if not abstract_snippet:
+                abstract_snippet = _clean_snippet(abstract[:200])
+            if abstract_snippet:
+                snippet_parts.append(f"[Abstract] {abstract_snippet}")
+        body_snippet = _build_snippet(body, term_pattern)
+        if body_snippet:
+            snippet_parts.append(body_snippet)
+        snippet = " | ".join(part for part in snippet_parts if part)
         rel_path = str(md_file.relative_to(kb_root))
 
         results.append(

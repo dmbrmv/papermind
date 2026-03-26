@@ -119,14 +119,15 @@ def test_doctor_api_key_not_set() -> None:
     assert "not set" in result.output
 
 
-def test_doctor_all_three_api_keys_listed() -> None:
-    """All three expected API key names appear in the output."""
+def test_doctor_all_four_api_keys_listed() -> None:
+    """All expected API key names appear in the output."""
     result = runner.invoke(app, ["doctor"])
     assert result.exit_code == 0
     for key in (
         "PAPERMIND_EXA_KEY",
         "PAPERMIND_SEMANTIC_SCHOLAR_KEY",
         "PAPERMIND_FIRECRAWL_KEY",
+        "PAPERMIND_ZAI_API_KEY",
     ):
         assert key in result.output
 
@@ -138,6 +139,7 @@ def test_doctor_does_not_print_key_values() -> None:
         "PAPERMIND_EXA_KEY": secret,
         "PAPERMIND_SEMANTIC_SCHOLAR_KEY": secret,
         "PAPERMIND_FIRECRAWL_KEY": secret,
+        "PAPERMIND_ZAI_API_KEY": secret,
     }
     with patch.dict("os.environ", env, clear=False):
         result = runner.invoke(app, ["doctor"])
@@ -173,6 +175,7 @@ def test_doctor_kb_stats_empty(tmp_path: Path) -> None:
     assert result.exit_code == 0
     assert "Papers:" in result.output
     assert "0" in result.output
+    assert "OCR:       local" in result.output
 
 
 def test_doctor_kb_stats_with_entries(tmp_path: Path) -> None:
@@ -216,6 +219,43 @@ def test_doctor_kb_shows_path(tmp_path: Path) -> None:
     result = runner.invoke(app, ["--kb", str(kb), "doctor"])
     assert result.exit_code == 0
     assert str(kb) in result.output
+
+
+def test_doctor_recovery_state_none(tmp_path: Path) -> None:
+    """Doctor should show when no recovery state exists."""
+    kb = tmp_path / "kb"
+    _init_kb(kb)
+    result = runner.invoke(app, ["--kb", str(kb), "doctor"])
+    assert result.exit_code == 0
+    assert "Recovery:" in result.output
+    assert "State:     none" in result.output
+
+
+def test_doctor_recovery_state_summary(tmp_path: Path) -> None:
+    """Doctor should print recovery queue counts when state exists."""
+    kb = tmp_path / "kb"
+    _init_kb(kb)
+    state_file = kb / ".papermind" / "recovery" / "deleted_papers_recovery.json"
+    state_file.parent.mkdir(parents=True, exist_ok=True)
+    state_file.write_text(
+        json.dumps(
+            {
+                "pending": [{"title": "Paper A"}],
+                "restored": [{"title": "Paper B"}],
+                "skipped": [{"title": "Paper C"}],
+                "failed": [{"title": "Paper D"}],
+                "last_run_started_at": "2026-03-26T11:00:00+00:00",
+                "last_run_finished_at": "2026-03-26T11:10:00+00:00",
+            }
+        )
+    )
+
+    result = runner.invoke(app, ["--kb", str(kb), "doctor"])
+    assert result.exit_code == 0
+    assert "Recovery:" in result.output
+    assert "pending=1 restored=1 skipped=1 failed=1" in result.output
+    assert "Started:" in result.output
+    assert "Finished:" in result.output
 
 
 # ---------------------------------------------------------------------------

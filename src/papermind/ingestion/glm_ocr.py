@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import logging
 import re
+from collections.abc import Iterator
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
@@ -78,7 +79,17 @@ def _ensure_model(model_name: str) -> tuple:
     return _processor, _model
 
 
-def _render_pdf_pages(pdf_path: Path, dpi: int = 150) -> list:
+def _page_count(pdf_path: Path) -> int:
+    """Return the number of pages in a PDF."""
+    import fitz  # pymupdf
+
+    doc = fitz.open(pdf_path)
+    count = doc.page_count
+    doc.close()
+    return count
+
+
+def _render_pdf_pages(pdf_path: Path, dpi: int = 150) -> Iterator:
     """Render each page of a PDF to a PIL Image.
 
     Args:
@@ -86,26 +97,24 @@ def _render_pdf_pages(pdf_path: Path, dpi: int = 150) -> list:
         dpi: Resolution for rendering. 150 balances quality and memory.
 
     Returns:
-        List of PIL Image objects, one per page.
+        Iterator of PIL Image objects, one per page.
     """
     import fitz  # pymupdf
     from PIL import Image
 
     doc = fitz.open(pdf_path)
-    images = []
     zoom = dpi / 72.0
     matrix = fitz.Matrix(zoom, zoom)
 
-    for page in doc:
-        pix = page.get_pixmap(matrix=matrix)
-        img = Image.frombytes("RGB", (pix.width, pix.height), pix.samples)
-        images.append(img)
+    try:
+        for page in doc:
+            pix = page.get_pixmap(matrix=matrix)
+            yield Image.frombytes("RGB", (pix.width, pix.height), pix.samples)
+    finally:
+        doc.close()
 
-    doc.close()
-    return images
 
-
-def _ocr_image(image, processor, model) -> str:
+def _ocr_image(image, processor, model, *, max_new_tokens: int = 4096) -> str:
     """Run GLM-OCR on a single image and return markdown text.
 
     Args:
@@ -136,7 +145,10 @@ def _ocr_image(image, processor, model) -> str:
 
     inputs.pop("token_type_ids", None)
 
-    generated_ids = model.generate(**inputs, max_new_tokens=8192)
+    import torch
+
+    with torch.inference_mode():
+        generated_ids = model.generate(**inputs, max_new_tokens=max_new_tokens)
     output_text = processor.decode(
         generated_ids[0][inputs["input_ids"].shape[1] :],
         skip_special_tokens=True,
@@ -252,6 +264,7 @@ def convert_pdf_glm(
     path: Path,
     model_name: str = "zai-org/GLM-OCR",
     dpi: int = 150,
+    max_new_tokens: int = 4096,
 ) -> str:
     """Convert a PDF file to markdown using GLM-OCR.
 
@@ -262,6 +275,7 @@ def convert_pdf_glm(
         path: Path to the PDF file.
         model_name: HuggingFace model ID for GLM-OCR.
         dpi: Resolution for PDF page rendering.
+        max_new_tokens: Maximum generated tokens per page.
 
     Returns:
         Concatenated markdown string for all pages.
@@ -277,15 +291,21 @@ def convert_pdf_glm(
         )
 
     processor, model = _ensure_model(model_name)
+    page_total = _page_count(path)
     images = _render_pdf_pages(path, dpi=dpi)
 
     from rich.progress import Progress
 
     pages_md = []
     with Progress(transient=True) as progress:
-        task = progress.add_task(f"OCR {path.name}", total=len(images))
+        task = progress.add_task(f"OCR {path.name}", total=page_total)
         for img in images:
-            page_text = _ocr_image(img, processor, model)
+            page_text = _ocr_image(
+                img,
+                processor,
+                model,
+                max_new_tokens=max_new_tokens,
+            )
             pages_md.append(page_text)
             progress.advance(task)
 

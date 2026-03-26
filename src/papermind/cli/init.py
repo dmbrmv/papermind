@@ -20,11 +20,23 @@ fallback_search = true
 # Prefer environment variables (PAPERMIND_*_KEY) over these values
 semantic_scholar_key = ""
 exa_key = ""
+zai_api_key = ""
 
 [ingestion]
+ocr_backend = "local"            # local | zai
 ocr_model = "zai-org/GLM-OCR"   # HuggingFace model for PDF OCR
 ocr_dpi = 150                    # DPI for PDF page rendering
+ocr_max_new_tokens = 4096        # Lower = faster, higher = more complete long-page OCR
+extract_pdf_images = true        # Disable for faster ingestion if figures are not needed
 default_paper_topic = "uncategorized"
+recovery_ocr_dpi = 120           # Lower DPI for recovery/background OCR
+recovery_ocr_max_new_tokens = 3072  # Faster generation ceiling during recovery/background OCR
+recovery_max_pdf_pages = 20      # Skip PDFs above this page count during recovery
+recovery_ocr_timeout_seconds = 180  # Per-paper OCR timeout during recovery
+zai_base_url = "https://api.z.ai/api/paas/v4"
+zai_model = "glm-ocr"
+zai_timeout_seconds = 120
+zai_max_pages = 40
 
 [firecrawl]
 api_key = ""

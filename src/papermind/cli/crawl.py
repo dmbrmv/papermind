@@ -317,6 +317,7 @@ def _resolve_and_ingest_doi(
             no_reindex=True,
             cites=cites or None,
             cited_by=cited_by or None,
+            preferred_doi=doi,
         )
         if entry is None:
             console.print(f"  [dim]SKIP[/dim] {doi} — duplicate")

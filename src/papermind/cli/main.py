@@ -137,6 +137,7 @@ def reindex_command(ctx: typer.Context) -> None:
 
     from papermind.catalog.index import CatalogIndex
     from papermind.catalog.render import render_catalog_md
+    from papermind.integrity import scan_kb_integrity, summarize_findings
 
     # Rebuild catalog.json from frontmatter (filesystem is truth)
     catalog = CatalogIndex.rebuild(kb_path)
@@ -150,6 +151,13 @@ def reindex_command(ctx: typer.Context) -> None:
     qmd_reindex(kb_path)
 
     console.print(f"Reindexed: {len(catalog.entries)} entries")
+    findings = scan_kb_integrity(kb_path, online=False)
+    summary = summarize_findings(findings)
+    if summary["total"]:
+        console.print(
+            "[yellow]Integrity warnings after reindex:[/yellow] "
+            f"errors={summary['error']} warnings={summary['warning']} info={summary['info']}"
+        )
 
 
 @app.command(name="serve")
@@ -550,6 +558,9 @@ def _ingest_downloaded(
                 abstract=paper_result.abstract,
                 cites=paper_result.cites or None,
                 cited_by=paper_result.cited_by or None,
+                preferred_title=paper_result.title,
+                preferred_doi=paper_result.doi,
+                preferred_year=paper_result.year,
             )
             if entry:
                 console.print(f"  [green]Ingested[/green] {entry.title[:60]}")
@@ -558,6 +569,11 @@ def _ingest_downloaded(
                 console.print("  [dim]Skipped[/dim] (duplicate)")
         except Exception as exc:
             console.print(f"  [red]Failed[/red] {pdf_path.name}: {exc}")
+
+    if ingested:
+        from papermind.query.qmd import qmd_reindex
+
+        qmd_reindex(kb_path)
 
     return ingested
 

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import frontmatter as fm_lib
 import typer
 from rich.console import Console
 from rich.table import Table
@@ -15,8 +16,10 @@ console = Console()
 
 def related_cmd(
     ctx: typer.Context,
-    paper_id: str = typer.Argument(
-        ..., help="Paper ID (e.g. paper-swat-calibration-2023)"
+    paper_ref: str = typer.Argument(
+        ...,
+        help="Paper ID, KB-relative path, or DOI "
+        "(e.g. paper-swat-calibration-2023)",
     ),
 ) -> None:
     """Show papers in the knowledge base connected by citations.
@@ -27,13 +30,13 @@ def related_cmd(
     """
 
     kb = _resolve_kb(ctx)
-    target_fm = _find_paper_frontmatter(kb, paper_id)
+    target_fm, matched_via = _resolve_paper_frontmatter(kb, paper_ref)
 
     if target_fm is None:
-        console.print(f"[red]Paper not found:[/red] {paper_id!r}")
+        console.print(f"[red]Paper not found:[/red] {paper_ref!r}")
         raise typer.Exit(code=1)
 
-    target_title = target_fm.get("title", paper_id)
+    target_title = target_fm.get("title", paper_ref)
     target_doi = target_fm.get("doi", "")
     cites_dois = set(target_fm.get("cites", []))
     cited_by_dois = set(target_fm.get("cited_by", []))
@@ -68,6 +71,8 @@ def related_cmd(
             seen_ref_dois.add(doi)
 
     console.print(f"\n[bold]Related papers for:[/bold] {target_title}")
+    if matched_via != "id":
+        console.print(f"[dim]Resolved via {matched_via}: {paper_ref}[/dim]")
     if target_doi:
         console.print(f"[dim]DOI: {target_doi}[/dim]")
 
@@ -113,8 +118,6 @@ def _find_paper_frontmatter(kb: Path, paper_id: str) -> dict | None:
     Returns:
         Frontmatter dict if found, None otherwise.
     """
-    import frontmatter as fm_lib
-
     for md_file in kb.rglob("*.md"):
         if (
             md_file.name.startswith(".")
@@ -131,6 +134,41 @@ def _find_paper_frontmatter(kb: Path, paper_id: str) -> dict | None:
     return None
 
 
+def _resolve_paper_frontmatter(kb: Path, paper_ref: str) -> tuple[dict | None, str]:
+    """Resolve a paper by id, relative path, or DOI."""
+    by_id = _find_paper_frontmatter(kb, paper_ref)
+    if by_id is not None:
+        return by_id, "id"
+
+    path_candidate = kb / paper_ref
+    if path_candidate.exists() and path_candidate.is_file():
+        try:
+            post = fm_lib.load(path_candidate)
+            if post.metadata.get("type") == "paper":
+                return dict(post.metadata), "path"
+        except Exception:
+            pass
+
+    for md_file in kb.rglob("*.md"):
+        if (
+            md_file.name.startswith(".")
+            or ".papermind" in md_file.parts
+            or md_file.name == "catalog.md"
+        ):
+            continue
+        try:
+            post = fm_lib.load(md_file)
+            if (
+                post.metadata.get("doi") == paper_ref
+                and post.metadata.get("type") == "paper"
+            ):
+                return dict(post.metadata), "doi"
+        except Exception:
+            continue
+
+    return None, "unknown"
+
+
 def _build_doi_index(kb: Path) -> dict[str, tuple[str, str]]:
     """Build a DOI → (paper_id, title) index from all papers in the KB.
 
@@ -140,8 +178,6 @@ def _build_doi_index(kb: Path) -> dict[str, tuple[str, str]]:
     Returns:
         Dict mapping DOI strings to (id, title) tuples.
     """
-    import frontmatter as fm_lib
-
     index: dict[str, tuple[str, str]] = {}
     for md_file in kb.rglob("*.md"):
         if (
@@ -174,8 +210,6 @@ def _find_reverse_links(
         Tuple of (papers that cite target, papers that target cites).
         Each item is (doi, paper_id, title).
     """
-    import frontmatter as fm_lib
-
     if not target_doi:
         return [], []
 

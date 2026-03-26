@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import shutil
+from pathlib import Path
 
 import typer
 from rich.console import Console
@@ -64,6 +65,7 @@ def doctor_command(
         ("PAPERMIND_EXA_KEY", "Exa search"),
         ("PAPERMIND_SEMANTIC_SCHOLAR_KEY", "Semantic Scholar"),
         ("PAPERMIND_FIRECRAWL_KEY", "Firecrawl web scraping"),
+        ("PAPERMIND_ZAI_API_KEY", "Z.AI OCR"),
     ]
 
     for key, _desc in keys:
@@ -75,7 +77,10 @@ def doctor_command(
     # KB stats
     if kb_path and (kb_path / ".papermind").exists():
         from papermind.catalog.index import CatalogIndex
+        from papermind.config import load_config
+        from papermind.recovery import default_recovery_state_path, recovery_summary
 
+        config = load_config(Path(kb_path))
         catalog = CatalogIndex(kb_path)
         stats = catalog.stats()
 
@@ -83,11 +88,31 @@ def doctor_command(
         console.print(f"  Papers:    {stats['papers']}")
         console.print(f"  Packages:  {stats['packages']}")
         console.print(f"  Codebases: {stats['codebases']}")
+        console.print(f"  OCR:       {config.ocr_backend}")
 
         topics = stats.get("topics", {})
         if topics:
             topic_str = ", ".join(f"{t} ({c})" for t, c in sorted(topics.items()))
             console.print(f"  Topics:    {topic_str}")
+
+        recovery_state = default_recovery_state_path(kb_path)
+        console.print("\n[bold]Recovery:[/bold]")
+        if recovery_state.exists():
+            import json
+
+            state = json.loads(recovery_state.read_text())
+            summary = recovery_summary(state)
+            console.print(f"  State:     {recovery_state}")
+            console.print(
+                f"  Queue:     pending={summary['pending']} restored={summary['restored']} "
+                f"skipped={summary['skipped']} failed={summary['failed']}"
+            )
+            if state.get("last_run_started_at"):
+                console.print(f"  Started:   {state.get('last_run_started_at', '')}")
+            if state.get("last_run_finished_at"):
+                console.print(f"  Finished:  {state.get('last_run_finished_at', '')}")
+        else:
+            console.print("  State:     none")
     elif kb_path:
         console.print(f"\n[yellow]KB not initialized at {kb_path}[/yellow]")
     else:

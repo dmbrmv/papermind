@@ -619,3 +619,78 @@ def test_fetch_dry_run(tmp_path: Path) -> None:
     # catalog.json must still be empty
     catalog = json.loads((kb / "catalog.json").read_text())
     assert len(catalog) == 0
+
+
+def test_fetch_end_to_end_reindexes_and_passes_intake(tmp_path: Path) -> None:
+    """fetch should download, ingest, reindex, and pass intake verification."""
+    from papermind.discovery.base import PaperResult
+
+    kb = _init_kb(tmp_path)
+
+    fake_results = [
+        PaperResult(
+            title="Differentiable SWAT Streamflow",
+            authors=["Smith, J."],
+            year=2024,
+            doi="10.1234/fetch-e2e",
+            abstract="An abstract.",
+            pdf_url="https://example.com/paper.pdf",
+            source="openalex",
+            is_open_access=True,
+            venue="WRR",
+            citation_count=5,
+        )
+    ]
+
+    async def _fake_discover(*args, **kwargs):
+        return fake_results
+
+    async def _fake_download(result, output_dir):
+        output_dir.mkdir(parents=True, exist_ok=True)
+        path = output_dir / "fetch-paper.pdf"
+        _make_fake_pdf(path)
+        return path
+
+    markdown_output = (
+        "# Differentiable SWAT Streamflow\n\n"
+        "A novel approach to runoff simulation (2024).\n\n"
+        "DOI: 10.1234/fetch-e2e\n"
+    )
+
+    with (
+        patch(
+            "papermind.discovery.orchestrator.discover_papers",
+            side_effect=_fake_discover,
+        ),
+        patch(
+            "papermind.discovery.providers.build_providers",
+            return_value=[object()],
+        ),
+        patch(
+            "papermind.discovery.downloader.download_paper",
+            side_effect=_fake_download,
+        ),
+        patch(
+            "papermind.ingestion.glm_ocr.convert_pdf_glm",
+            return_value=markdown_output,
+        ),
+        patch("papermind.query.qmd.qmd_reindex") as mock_reindex,
+        patch(
+            "papermind.integrity._fetch_openalex_title",
+            return_value="Differentiable SWAT Streamflow",
+        ),
+    ):
+        result = runner.invoke(
+            app,
+            ["--kb", str(kb), "fetch", "streamflow", "--topic", "hydrology"],
+        )
+        assert result.exit_code == 0, result.output
+        assert mock_reindex.call_count == 1
+
+        catalog = json.loads((kb / "catalog.json").read_text())
+        assert len(catalog) == 1
+        paper_id = catalog[0]["id"]
+
+        intake = runner.invoke(app, ["--kb", str(kb), "audit", "intake", paper_id])
+        assert intake.exit_code == 0, intake.output
+        assert "Paper intake passed" in intake.output
