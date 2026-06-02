@@ -11,11 +11,16 @@ from pathlib import Path
 import frontmatter as fm_lib
 
 from papermind.catalog.index import CatalogIndex
+from papermind.ingestion.latex_titles import looks_html_junk, looks_latex_encoded
 
 # Accept legacy Wiley/AMS SICI-style DOIs that embed angle brackets, e.g.
 # 10.1175/1525-7541(2004)005<0064:CCOTHC>2.0.CO;2 — these are valid registered
 # DOIs that the stricter class previously flagged as invalid.
 _DOI_RE = re.compile(r"^10\.\d{4,9}/[-._;()/:<>A-Za-z0-9]+$")
+
+# Titles that are really section headings / placeholders the intake grabbed by
+# mistake — a clean title should never be one of these.
+_PLACEHOLDER_TITLES = {"abstract", "introduction", "untitled", "title", "paper"}
 
 
 @dataclass
@@ -49,6 +54,7 @@ def validate_paper_metadata(
     topic = str(metadata.get("topic", "")).strip()
     entry_type = str(metadata.get("type", "")).strip()
     doi = str(metadata.get("doi", "")).strip()
+    abstract = str(metadata.get("abstract", "")).strip()
     year = metadata.get("year")
     cites = metadata.get("cites")
     cited_by = metadata.get("cited_by")
@@ -74,6 +80,34 @@ def validate_paper_metadata(
         add("error", "missing_title", "Paper entry is missing required field 'title'")
     if not topic:
         add("error", "missing_topic", "Paper entry is missing required field 'topic'")
+
+    # Content-quality checks (warnings — degrade search/display, not structural).
+    if title and looks_latex_encoded(title):
+        add(
+            "warning",
+            "latex_encoded_title",
+            "Title contains undecoded LaTeX/BibTeX markup",
+            detail=title[:120],
+        )
+    if title and title.lower() in _PLACEHOLDER_TITLES:
+        add(
+            "warning",
+            "placeholder_title",
+            "Title looks like a section heading / placeholder, not a real title",
+            detail=title,
+        )
+    if abstract and "\\" in abstract:
+        add(
+            "warning",
+            "latex_encoded_abstract",
+            "Abstract contains undecoded LaTeX markup",
+        )
+    if abstract and looks_html_junk(abstract):
+        add(
+            "warning",
+            "html_junk_abstract",
+            "Abstract contains HTML tags/entities or LaTeX-escaped HTML",
+        )
 
     if doi and not _DOI_RE.match(doi):
         add("error", "invalid_doi", "DOI does not match expected format", detail=doi)
