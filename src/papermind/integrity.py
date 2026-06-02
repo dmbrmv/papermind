@@ -12,7 +12,10 @@ import frontmatter as fm_lib
 
 from papermind.catalog.index import CatalogIndex
 
-_DOI_RE = re.compile(r"^10\.\d{4,9}/[-._;()/:A-Za-z0-9]+$")
+# Accept legacy Wiley/AMS SICI-style DOIs that embed angle brackets, e.g.
+# 10.1175/1525-7541(2004)005<0064:CCOTHC>2.0.CO;2 — these are valid registered
+# DOIs that the stricter class previously flagged as invalid.
+_DOI_RE = re.compile(r"^10\.\d{4,9}/[-._;()/:<>A-Za-z0-9]+$")
 
 
 @dataclass
