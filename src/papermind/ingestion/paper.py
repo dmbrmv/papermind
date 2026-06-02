@@ -11,8 +11,12 @@ from papermind.catalog.index import CatalogEntry, CatalogIndex
 from papermind.catalog.render import render_catalog_md
 from papermind.config import PaperMindConfig
 from papermind.ingestion.common import build_frontmatter, generate_id
-from papermind.ingestion.latex_titles import clean_scientific_text
-from papermind.ingestion.validation import ValidationError, validate_markdown, validate_pdf
+from papermind.ingestion.latex_titles import clean_body_heading, clean_scientific_text
+from papermind.ingestion.validation import (
+    ValidationError,
+    validate_markdown,
+    validate_pdf,
+)
 from papermind.integrity import validate_paper_metadata
 
 logger = logging.getLogger(__name__)
@@ -110,7 +114,9 @@ def _primary_metadata_window(markdown: str) -> str:
 
 def _title_similarity(left: str, right: str) -> float:
     """Approximate similarity between two titles."""
-    normalize = lambda s: re.sub(r"\s+", " ", re.sub(r"[^a-z0-9\s]", " ", s.lower())).strip()
+    normalize = lambda s: re.sub(
+        r"\s+", " ", re.sub(r"[^a-z0-9\s]", " ", s.lower())
+    ).strip()
     return SequenceMatcher(None, normalize(left), normalize(right)).ratio()
 
 
@@ -190,7 +196,12 @@ def ingest_paper(
                 f"preferred={preferred_title!r}, extracted={extracted_title!r}"
             )
 
-    title = existing_fm.get("title") or preferred_title or extracted_title or source_path.stem
+    title = (
+        existing_fm.get("title")
+        or preferred_title
+        or extracted_title
+        or source_path.stem
+    )
     doi = existing_fm.get("doi") or preferred_doi or extracted_doi
     year = existing_fm.get("year") or preferred_year or extracted_year
     if not abstract:
@@ -202,6 +213,10 @@ def ingest_paper(
     # this decode to here.
     title = clean_scientific_text(str(title)) if title else title
     abstract = clean_scientific_text(str(abstract)) if abstract else abstract
+    # The body H1 is what qmd returns as the search-result title — clean it to
+    # match the frontmatter so a bib-shim re-ingest can't reintroduce encoded
+    # markup the frontmatter pass above already stripped.
+    markdown, _ = clean_body_heading(markdown)
 
     if preferred_doi and extracted_doi and preferred_doi != extracted_doi:
         logger.warning(
@@ -273,9 +288,17 @@ def ingest_paper(
         **({"cited_by": cited_by} if cited_by else {}),
     )
 
-    metadata_findings = validate_paper_metadata(fm, path=str(md_path.relative_to(kb_path)))
-    errors = [finding.message for finding in metadata_findings if finding.severity == "error"]
-    warnings = [finding.message for finding in metadata_findings if finding.severity == "warning"]
+    metadata_findings = validate_paper_metadata(
+        fm, path=str(md_path.relative_to(kb_path))
+    )
+    errors = [
+        finding.message for finding in metadata_findings if finding.severity == "error"
+    ]
+    warnings = [
+        finding.message
+        for finding in metadata_findings
+        if finding.severity == "warning"
+    ]
     if errors:
         raise ValidationError("; ".join(errors))
     for warning in warnings:

@@ -36,35 +36,14 @@ import frontmatter
 from papermind.catalog.index import CatalogIndex
 from papermind.catalog.render import render_catalog_md
 from papermind.ingestion.latex_titles import (
+    clean_body_heading,
     clean_scientific_text,
     decode_latex_title,
     looks_html_junk,
-    looks_latex_encoded,
 )
 
 # One repair record: (path, loaded post, new_title|None, new_abstract|None, new_body).
 Target = tuple[Path, frontmatter.Post, str | None, str | None, str]
-
-
-def _decode_body_heading(content: str) -> tuple[str, bool]:
-    """Decode the leading ``# ...`` H1 heading if it is LaTeX-encoded.
-
-    Returns ``(new_content, changed)``. Only the first non-blank line is
-    considered, and only when it is an H1.
-    """
-    lines = content.split("\n")
-    for i, line in enumerate(lines):
-        if not line.strip():
-            continue
-        if line.startswith("# "):
-            heading = line[2:].strip()
-            if looks_latex_encoded(heading):
-                decoded = decode_latex_title(heading)
-                if decoded and "\\" not in decoded:
-                    lines[i] = "# " + decoded
-                    return "\n".join(lines), True
-        return content, False  # first real line handled (or not an H1)
-    return content, False
 
 
 def _residual_markers(text: str) -> str:
@@ -96,7 +75,7 @@ def _find_targets(kb: Path) -> list[Target]:
         cleaned_abstract = clean_scientific_text(old_abstract)
         abstract_changed = bool(cleaned_abstract) and cleaned_abstract != old_abstract
 
-        new_content, body_changed = _decode_body_heading(post.content)
+        new_content, body_changed = clean_body_heading(post.content)
 
         if title_changed or abstract_changed or body_changed:
             targets.append(

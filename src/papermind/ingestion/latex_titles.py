@@ -116,3 +116,34 @@ def clean_scientific_text(text: str) -> str:
             out = decoder.latex_to_text(out)
     out = strip_html(out)
     return " ".join(out.split()).strip()
+
+
+def clean_body_heading(content: str) -> tuple[str, bool]:
+    """Clean the leading ``# ...`` H1 of a markdown body in place.
+
+    The body H1 is the title ``qmd`` surfaces as a search-result title, so it
+    must be decoded/stripped to match the cleaned frontmatter — otherwise a
+    bib-shim re-ingest reintroduces encoded markup the frontmatter pass already
+    removed. Only the first non-blank line is considered, and only when it is an
+    H1; a later ``#`` section heading is never touched.
+
+    Args:
+        content: Full markdown body.
+
+    Returns:
+        ``(new_content, changed)``: the body with its leading H1 cleaned, and
+        whether anything changed.
+    """
+    lines = content.split("\n")
+    for i, line in enumerate(lines):
+        if not line.strip():
+            continue
+        if line.startswith("# "):
+            heading = line[2:].strip()
+            if looks_latex_encoded(heading) or looks_html_junk(heading):
+                cleaned = clean_scientific_text(heading)
+                if cleaned and cleaned != heading:
+                    lines[i] = "# " + cleaned
+                    return "\n".join(lines), True
+        return content, False  # first real line handled (or not an H1)
+    return content, False

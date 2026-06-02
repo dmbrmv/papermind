@@ -5,6 +5,7 @@ from __future__ import annotations
 import pytest
 
 from papermind.ingestion.latex_titles import (
+    clean_body_heading,
     clean_scientific_text,
     decode_latex_title,
     looks_html_junk,
@@ -112,3 +113,39 @@ def test_clean_collapses_whitespace_when_stripping_html() -> None:
 
 def test_decode_latex_title_unchanged_for_plain() -> None:
     assert decode_latex_title("Plain Title") == "Plain Title"
+
+
+# ---------------------------------------------------------------------------
+# clean_body_heading — the leading body H1 is what qmd shows as the result title
+# ---------------------------------------------------------------------------
+
+
+def test_clean_body_heading_strips_html_h1() -> None:
+    out, changed = clean_body_heading(
+        "# Streamflow (Q<sub>flow</sub>) Model\n\nBody.\n"
+    )
+    assert changed
+    assert out.startswith("# Streamflow (Qflow) Model")
+    assert "<sub>" not in out
+
+
+def test_clean_body_heading_unchanged_for_clean_h1() -> None:
+    content = "# A Perfectly Clean Title\n\nBody.\n"
+    out, changed = clean_body_heading(content)
+    assert not changed
+    assert out == content
+
+
+def test_clean_body_heading_only_touches_first_line() -> None:
+    # Encoded markup below the first real line must be left alone — a body
+    # section heading is not the title qmd surfaces.
+    content = "Intro paragraph.\n\n# Streamflow (Q<sub>flow</sub>)\n"
+    out, changed = clean_body_heading(content)
+    assert not changed
+    assert out == content
+
+
+def test_clean_body_heading_skips_leading_blank_lines() -> None:
+    out, changed = clean_body_heading("\n\n# Streamflow (Q<sub>flow</sub>)\n")
+    assert changed
+    assert "# Streamflow (Qflow)" in out

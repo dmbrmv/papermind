@@ -8,8 +8,8 @@ from unittest.mock import patch
 
 from papermind.catalog.index import CatalogIndex
 from papermind.config import PaperMindConfig
-from papermind.ingestion.validation import ValidationError
 from papermind.ingestion.paper import convert_pdf, extract_metadata, ingest_paper
+from papermind.ingestion.validation import ValidationError
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -261,7 +261,9 @@ class TestIngestPaperFrontmatter:
         doi_val = post.metadata.get("doi", "")
         assert doi_val == ""
 
-    def test_invalid_markdown_frontmatter_raises_validation_error(self, tmp_path: Path) -> None:
+    def test_invalid_markdown_frontmatter_raises_validation_error(
+        self, tmp_path: Path
+    ) -> None:
         """Invalid final metadata in supplied markdown frontmatter should fail."""
         kb = _make_kb(tmp_path)
         cfg = _make_config(tmp_path)
@@ -613,3 +615,24 @@ class TestIngestPaperCleaning:
         written = list((kb / "papers" / "climate").rglob("paper.md"))[0]
         post = fm_lib.load(written)
         assert post.metadata["title"] == "Köppen Climate Classification"
+
+    def test_cleans_body_h1_to_match_frontmatter(self, tmp_path: Path) -> None:
+        """The body H1 (what qmd surfaces as the result title) is cleaned too.
+
+        Frontmatter-only cleaning would leave a bib-shim re-ingest writing an
+        encoded ``# {title}`` body H1 that search still shows as the title.
+        """
+        import frontmatter as fm_lib
+
+        kb = _make_kb(tmp_path)
+        pdf = _make_pdf(tmp_path / "paper.pdf")
+        cfg = _make_config(tmp_path)
+
+        with _mock_convert("# Streamflow (Q<sub>flow</sub>) Model\n\nBody text.\n"):
+            ingest_paper(pdf, "hydrology", kb, cfg, no_reindex=True)
+
+        written = list((kb / "papers" / "hydrology").rglob("paper.md"))[0]
+        post = fm_lib.load(written)
+        assert post.metadata["title"] == "Streamflow (Qflow) Model"
+        assert post.content.lstrip().startswith("# Streamflow (Qflow) Model")
+        assert "<sub>" not in post.content
