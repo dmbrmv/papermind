@@ -11,6 +11,7 @@ from papermind.catalog.index import CatalogEntry, CatalogIndex
 from papermind.catalog.render import render_catalog_md
 from papermind.config import PaperMindConfig
 from papermind.ingestion.common import build_frontmatter, generate_id
+from papermind.ingestion.latex_titles import clean_scientific_text
 from papermind.ingestion.validation import ValidationError, validate_markdown, validate_pdf
 from papermind.integrity import validate_paper_metadata
 
@@ -194,6 +195,13 @@ def ingest_paper(
     year = existing_fm.get("year") or preferred_year or extracted_year
     if not abstract:
         abstract = existing_fm.get("abstract", "")
+
+    # Final cleaning chokepoint for every ingest path (OCR + bib-shim): decode
+    # LaTeX and strip publisher HTML so encoded title/abstract metadata can
+    # never enter the KB. bib_index.py stays pure-stdlib by design and defers
+    # this decode to here.
+    title = clean_scientific_text(str(title)) if title else title
+    abstract = clean_scientific_text(str(abstract)) if abstract else abstract
 
     if preferred_doi and extracted_doi and preferred_doi != extracted_doi:
         logger.warning(

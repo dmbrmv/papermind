@@ -572,3 +572,44 @@ class TestTitleSimilarityDedup:
             result = ingest_paper(pdf, "hydrology", kb, cfg, no_reindex=True)
 
         assert result is not None, "Expected a CatalogEntry for a distinct title"
+
+
+# ---------------------------------------------------------------------------
+# ingest_paper — title/abstract cleaning chokepoint (B2 ingest hardening)
+# ---------------------------------------------------------------------------
+
+
+class TestIngestPaperCleaning:
+    """Encoded title/abstract metadata is cleaned at the ingest chokepoint."""
+
+    def test_strips_html_from_title_without_pylatexenc(self, tmp_path: Path) -> None:
+        """HTML stripping needs no optional dep, so it runs everywhere."""
+        import frontmatter as fm_lib
+
+        kb = _make_kb(tmp_path)
+        pdf = _make_pdf(tmp_path / "paper.pdf")
+        cfg = _make_config(tmp_path)
+
+        with _mock_convert("# Streamflow (Q<sub>flow</sub>) Model\n"):
+            ingest_paper(pdf, "hydrology", kb, cfg, no_reindex=True)
+
+        written = list((kb / "papers" / "hydrology").rglob("paper.md"))[0]
+        post = fm_lib.load(written)
+        assert post.metadata["title"] == "Streamflow (Qflow) Model"
+
+    def test_decodes_latex_title_when_pylatexenc_present(self, tmp_path: Path) -> None:
+        import pytest
+
+        pytest.importorskip("pylatexenc")
+        import frontmatter as fm_lib
+
+        kb = _make_kb(tmp_path)
+        pdf = _make_pdf(tmp_path / "paper.pdf")
+        cfg = _make_config(tmp_path)
+
+        with _mock_convert('# K\\"oppen Climate Classification\n'):
+            ingest_paper(pdf, "climate", kb, cfg, no_reindex=True)
+
+        written = list((kb / "papers" / "climate").rglob("paper.md"))[0]
+        post = fm_lib.load(written)
+        assert post.metadata["title"] == "Köppen Climate Classification"
