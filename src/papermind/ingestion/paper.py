@@ -312,7 +312,9 @@ def ingest_paper(
     import shutil
 
     if is_markdown:
-        original_copy = paper_dir / "original.md"
+        # ".markdown" (not ".md") so qmd's fixed **/*.md pattern does NOT index
+        # this raw archival copy — paper.md is the single canonical indexed file.
+        original_copy = paper_dir / "original.markdown"
     else:
         original_copy = paper_dir / "original.pdf"
     if not original_copy.exists():

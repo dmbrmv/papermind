@@ -40,14 +40,17 @@ def qmd_search(
 
     Returns:
         List of SearchResult ranked by descending relevance score, de-duplicated
-        to one entry per paper (see body — qmd indexes paper.md + original.md).
+        to one entry per paper. Raw siblings are now archived as
+        ``original.markdown`` (un-indexed; see ``scripts/unindex_original_md.py``),
+        so this de-dup is a safety net for any legacy ``original.md`` still indexed.
 
     Raises:
         RuntimeError: If qmd exits with a non-zero return code.
     """
-    # qmd's -n caps output (default 20 for --json). Every paper is indexed as
-    # BOTH paper.md and a near-duplicate original.md sibling, so over-fetch ~2x
-    # the limit to leave enough DISTINCT papers after de-duplication below.
+    # qmd's -n caps output (default 20 for --json). Over-fetch ~2x the limit as
+    # cheap insurance: paper.md is now the only indexed copy per paper (raw
+    # siblings archived as original.markdown), but legacy original.md may linger
+    # in an index, and the dedup below still needs DISTINCT papers to survive.
     n_fetch = max(limit * 2, 20)
     cmd = ["qmd", "search", query, "--json", "-n", str(n_fetch)]
 
@@ -57,11 +60,11 @@ def qmd_search(
 
     data: list[dict[str, object]] = json.loads(result.stdout)
 
-    # Collapse the paper.md + original.md siblings qmd indexes for every paper
-    # (both match **/*.md) to one hit per papers/<id>/ directory, preferring
-    # paper.md — it carries the clean decoded title/H1 while original.md keeps
-    # the raw encoded one. De-dups RESULTS only; the index still holds both
-    # files, so on-disk size and query speed are unchanged. Scan the full
+    # Collapse any paper.md + original.md pair sharing a papers/<id>/ directory
+    # to one hit, preferring paper.md (it carries the clean decoded title/H1;
+    # original.md kept the raw one). New intake no longer indexes original.md
+    # (archived as original.markdown), so this mostly no-ops now — kept as a
+    # safety net for any legacy original.md still in an index. Scan the full
     # result set so a later paper.md can upgrade an earlier original.md hit,
     # then truncate to `limit`.
     results: list[SearchResult] = []

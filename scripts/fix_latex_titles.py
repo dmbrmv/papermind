@@ -11,9 +11,9 @@ each ``paper.md``:
 3. the frontmatter ``abstract:`` field (LaTeX decode **and** HTML strip — the
    abstract is the primary searchable text for much of the corpus).
 
-Only ``paper.md`` is processed: its raw ``original.md`` sibling is de-duplicated
-out of search results by ``qmd_search`` (papermind 8ee143d), so cleaning it
-would be wasted work.
+Only ``paper.md`` is processed: the raw sibling is archived as
+``original.markdown`` (un-indexed by qmd's ``**/*.md`` pattern; see
+``scripts/unindex_original_md.py``), so it is not searched and needs no cleaning.
 
 It then rebuilds the catalog (SQLite ``papermind.db`` + ``catalog.json`` +
 ``catalog.md``) from the now-authoritative frontmatter. Touched files are

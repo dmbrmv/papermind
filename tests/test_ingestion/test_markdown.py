@@ -145,7 +145,7 @@ class TestIngestMarkdownPaper:
         assert entry.doi == "10.9999/swat"
 
     def test_markdown_original_copied(self, tmp_path: Path) -> None:
-        """Original .md is copied as original.md (not original.pdf)."""
+        """Markdown source is archived as original.markdown (un-indexed, not .pdf)."""
         kb = _make_kb(tmp_path)
         md = _write_md(
             tmp_path / "paper.md",
@@ -157,7 +157,9 @@ class TestIngestMarkdownPaper:
 
         assert entry is not None
         paper_dir = (kb / "papers" / "general").iterdir().__next__()
-        assert (paper_dir / "original.md").exists()
+        # ".markdown" so qmd's **/*.md pattern leaves the raw copy un-indexed.
+        assert (paper_dir / "original.markdown").exists()
+        assert not (paper_dir / "original.md").exists()
         assert not (paper_dir / "original.pdf").exists()
 
     def test_markdown_catalog_updated(self, tmp_path: Path) -> None:

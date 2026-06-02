@@ -64,7 +64,7 @@ def export_kb(
             zf.write(entry_path, rel)
             file_count += 1
 
-            # Add sibling files (original.pdf, original.md, images/)
+            # Add sibling files (original.pdf, original.markdown, images/)
             parent = entry_path.parent
             for sibling in parent.rglob("*"):
                 if sibling.is_file() and sibling != entry_path:
