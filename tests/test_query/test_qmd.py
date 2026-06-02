@@ -45,7 +45,11 @@ def _make_completed_process(
 
 
 def test_qmd_search_command_construction(tmp_path: Path) -> None:
-    """qmd v2 search uses: qmd search <query> --json."""
+    """qmd v2 search uses: qmd search <query> --json -n <n>.
+
+    ``-n`` over-fetches (~2x the limit, floored at qmd's json default of 20) so
+    that enough distinct papers survive the paper.md/original.md de-dup pass.
+    """
     kb = tmp_path / "kb"
     kb.mkdir()
 
@@ -57,7 +61,8 @@ def test_qmd_search_command_construction(tmp_path: Path) -> None:
 
     mock_run.assert_called_once()
     cmd = mock_run.call_args[0][0]
-    assert cmd == ["qmd", "search", "soil moisture", "--json"]
+    # limit=5 → n_fetch = max(5*2, 20) = 20
+    assert cmd == ["qmd", "search", "soil moisture", "--json", "-n", "20"]
 
 
 # ---------------------------------------------------------------------------
@@ -140,6 +145,73 @@ def test_qmd_search_scope_filters_results(tmp_path: Path) -> None:
 
     assert len(results) == 1
     assert results[0].path == "papers/a.md"
+
+
+def test_qmd_search_dedups_paper_and_original_md(tmp_path: Path) -> None:
+    """paper.md + original.md siblings collapse to one hit, preferring paper.md."""
+    kb = tmp_path / "kb"
+    kb.mkdir()
+
+    # qmd indexes both files per paper; original.md keeps the raw encoded title.
+    payload = [
+        {
+            "file": "qmd://kb/papers/hydro/runoff-2020/paper.md",
+            "title": "Runoff Estimation",
+            "snippet": "clean",
+            "score": 0.9,
+        },
+        {
+            "file": "qmd://kb/papers/hydro/runoff-2020/original.md",
+            "title": "{{Runoff}} Estimation",
+            "snippet": "raw",
+            "score": 0.9,
+        },
+    ]
+
+    with patch(
+        "papermind.query.qmd.subprocess.run",
+        return_value=_make_completed_process(stdout=json.dumps(payload)),
+    ):
+        results = qmd_search(kb, "runoff", limit=10)
+
+    assert len(results) == 1
+    assert results[0].path == "papers/hydro/runoff-2020/paper.md"
+    assert results[0].title == "Runoff Estimation"
+
+
+def test_qmd_search_dedup_prefers_paper_md_when_original_ranks_first(
+    tmp_path: Path,
+) -> None:
+    """Even if original.md outranks paper.md, the kept hit is paper.md."""
+    kb = tmp_path / "kb"
+    kb.mkdir()
+
+    payload = [
+        {
+            "file": "qmd://kb/papers/hydro/runoff-2020/original.md",
+            "title": "{{Runoff}} Estimation",
+            "snippet": "raw",
+            "score": 0.95,
+        },
+        {
+            "file": "qmd://kb/papers/hydro/runoff-2020/paper.md",
+            "title": "Runoff Estimation",
+            "snippet": "clean",
+            "score": 0.90,
+        },
+    ]
+
+    with patch(
+        "papermind.query.qmd.subprocess.run",
+        return_value=_make_completed_process(stdout=json.dumps(payload)),
+    ):
+        results = qmd_search(kb, "runoff", limit=10)
+
+    assert len(results) == 1
+    assert results[0].path == "papers/hydro/runoff-2020/paper.md"
+    assert results[0].title == "Runoff Estimation"
+    # the better of the two sibling scores is preserved
+    assert results[0].score == pytest.approx(0.95)
 
 
 def test_qmd_search_returns_empty_list_for_empty_json(tmp_path: Path) -> None:
